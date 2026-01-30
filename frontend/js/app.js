@@ -1,0 +1,657 @@
+/**
+ * ClipMatch - Frontend Application
+ * Video Source Detection System
+ */
+
+// API Configuration
+const API_BASE = 'http://localhost:5000/api';
+
+// State
+const state = {
+    currentPage: 'match',
+    selectedFile: null,
+    isProcessing: false,
+    references: [],
+    history: []
+};
+
+// DOM Elements
+const elements = {
+    // Navigation
+    navLinks: document.querySelectorAll('.nav-link'),
+    pages: document.querySelectorAll('.page'),
+    
+    // Match Page
+    uploadZone: document.getElementById('uploadZone'),
+    clipInput: document.getElementById('clipInput'),
+    filePreview: document.getElementById('filePreview'),
+    fileName: document.getElementById('fileName'),
+    fileMeta: document.getElementById('fileMeta'),
+    removeFile: document.getElementById('removeFile'),
+    analyzeBtn: document.getElementById('analyzeBtn'),
+    processing: document.getElementById('processing'),
+    processingStatus: document.getElementById('processingStatus'),
+    progressBar: document.getElementById('progressBar'),
+    results: document.getElementById('results'),
+    processingTime: document.getElementById('processingTime'),
+    matchResult: document.getElementById('matchResult'),
+    meterFill: document.getElementById('meterFill'),
+    confidenceValue: document.getElementById('confidenceValue'),
+    confidenceLabel: document.getElementById('confidenceLabel'),
+    matchedVideo: document.getElementById('matchedVideo'),
+    timestampRange: document.getElementById('timestampRange'),
+    similarityScore: document.getElementById('similarityScore'),
+    noMatch: document.getElementById('noMatch'),
+    resetBtn: document.getElementById('resetBtn'),
+    
+    // Library Page
+    libraryStats: document.getElementById('libraryStats'),
+    statVideos: document.getElementById('statVideos'),
+    statFrames: document.getElementById('statFrames'),
+    statDuration: document.getElementById('statDuration'),
+    uploadReference: document.getElementById('uploadReference'),
+    referenceInput: document.getElementById('referenceInput'),
+    indexAllBtn: document.getElementById('indexAllBtn'),
+    libraryList: document.getElementById('libraryList'),
+    emptyLibrary: document.getElementById('emptyLibrary'),
+    
+    // History Page
+    historyList: document.getElementById('historyList'),
+    emptyHistory: document.getElementById('emptyHistory'),
+    
+    // Toast
+    toastContainer: document.getElementById('toastContainer'),
+    
+    // Modal
+    uploadModal: document.getElementById('uploadModal'),
+    modalClose: document.getElementById('modalClose'),
+    indexFileName: document.getElementById('indexFileName'),
+    indexStatus: document.getElementById('indexStatus'),
+    indexBarFill: document.getElementById('indexBarFill')
+};
+
+// ============================================================
+// Navigation
+// ============================================================
+
+function initNavigation() {
+    elements.navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const page = link.dataset.page;
+            navigateTo(page);
+        });
+    });
+}
+
+function navigateTo(page) {
+    // Update nav links
+    elements.navLinks.forEach(link => {
+        link.classList.toggle('active', link.dataset.page === page);
+    });
+    
+    // Update pages
+    elements.pages.forEach(p => {
+        p.classList.toggle('active', p.id === `page-${page}`);
+    });
+    
+    state.currentPage = page;
+    
+    // Load data for page
+    if (page === 'library') {
+        loadLibrary();
+    } else if (page === 'history') {
+        loadHistory();
+    }
+}
+
+// ============================================================
+// Match Page
+// ============================================================
+
+function initMatchPage() {
+    // Upload zone click
+    elements.uploadZone.addEventListener('click', () => {
+        elements.clipInput.click();
+    });
+    
+    // File input change
+    elements.clipInput.addEventListener('change', handleFileSelect);
+    
+    // Drag and drop
+    elements.uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        elements.uploadZone.classList.add('dragover');
+    });
+    
+    elements.uploadZone.addEventListener('dragleave', () => {
+        elements.uploadZone.classList.remove('dragover');
+    });
+    
+    elements.uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        elements.uploadZone.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+    
+    // Remove file
+    elements.removeFile.addEventListener('click', resetMatchPage);
+    
+    // Analyze button
+    elements.analyzeBtn.addEventListener('click', analyzeClip);
+    
+    // Reset button
+    elements.resetBtn.addEventListener('click', resetMatchPage);
+}
+
+function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) {
+        handleFile(file);
+    }
+}
+
+function handleFile(file) {
+    // Validate file type
+    const validTypes = ['video/mp4', 'video/avi', 'video/x-matroska', 'video/quicktime', 'video/webm'];
+    const ext = file.name.split('.').pop().toLowerCase();
+    const validExts = ['mp4', 'avi', 'mkv', 'mov', 'webm', 'flv'];
+    
+    if (!validExts.includes(ext)) {
+        showToast('error', 'Unsupported file format. Please use MP4, AVI, MKV, MOV, or WEBM.');
+        return;
+    }
+    
+    state.selectedFile = file;
+    
+    // Update UI
+    elements.fileName.textContent = file.name;
+    elements.fileMeta.textContent = formatFileSize(file.size);
+    
+    elements.uploadZone.classList.add('hidden');
+    elements.filePreview.classList.remove('hidden');
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function analyzeClip() {
+    if (!state.selectedFile || state.isProcessing) return;
+    
+    state.isProcessing = true;
+    
+    // Show processing
+    elements.filePreview.classList.add('hidden');
+    elements.processing.classList.remove('hidden');
+    
+    // Simulate progress
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        elements.progressBar.style.width = progress + '%';
+        
+        if (progress < 30) {
+            elements.processingStatus.textContent = 'Extracting visual signatures...';
+        } else if (progress < 60) {
+            elements.processingStatus.textContent = 'Comparing against reference library...';
+        } else {
+            elements.processingStatus.textContent = 'Calculating confidence scores...';
+        }
+    }, 500);
+    
+    try {
+        const formData = new FormData();
+        formData.append('clip', state.selectedFile);
+        
+        const response = await fetch(`${API_BASE}/match`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        clearInterval(progressInterval);
+        elements.progressBar.style.width = '100%';
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        displayResults(data);
+        
+    } catch (error) {
+        clearInterval(progressInterval);
+        showToast('error', 'Analysis failed. Please try again.');
+        resetMatchPage();
+    }
+    
+    state.isProcessing = false;
+}
+
+function displayResults(data) {
+    elements.processing.classList.add('hidden');
+    elements.results.classList.remove('hidden');
+    
+    elements.processingTime.textContent = `Processed in ${data.processing_time?.toFixed(2) || '?'}s`;
+    
+    if (data.success && data.best_match) {
+        const match = data.best_match;
+        
+        elements.matchResult.classList.remove('hidden');
+        elements.noMatch.classList.add('hidden');
+        
+        // Animate confidence meter
+        animateConfidence(match.confidence);
+        
+        // Update details
+        elements.matchedVideo.textContent = match.video_title || match.video_filename;
+        elements.timestampRange.textContent = match.timestamp_formatted || '—';
+        elements.similarityScore.textContent = (match.avg_similarity || 0).toFixed(1) + '%';
+        
+    } else {
+        elements.matchResult.classList.add('hidden');
+        elements.noMatch.classList.remove('hidden');
+    }
+}
+
+function animateConfidence(value) {
+    const duration = 1500;
+    const start = 0;
+    const startTime = performance.now();
+    
+    // Determine color class
+    let colorClass = 'weak';
+    if (value >= 75) colorClass = 'very-strong';
+    else if (value >= 50) colorClass = 'strong';
+    else if (value >= 25) colorClass = 'possible';
+    else if (value >= 10) colorClass = 'weak';
+    else colorClass = 'unlikely';
+    
+    function animate(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const currentValue = Math.round(start + (value - start) * easeOut);
+        
+        elements.confidenceValue.textContent = currentValue;
+        
+        // Update meter fill (arc from 0 to 251 stroke-dashoffset)
+        const dashOffset = 251 - (251 * (currentValue / 100));
+        elements.meterFill.style.strokeDashoffset = dashOffset;
+        elements.meterFill.className = 'meter-fill ' + colorClass;
+        
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            // Set final label
+            let label = 'UNLIKELY MATCH';
+            if (value >= 75) label = 'VERY STRONG MATCH';
+            else if (value >= 50) label = 'STRONG MATCH';
+            else if (value >= 25) label = 'POSSIBLE MATCH';
+            else if (value >= 10) label = 'WEAK MATCH';
+            
+            elements.confidenceLabel.textContent = label;
+            elements.confidenceLabel.className = 'meter-status confidence-' + colorClass;
+        }
+    }
+    
+    requestAnimationFrame(animate);
+}
+
+function resetMatchPage() {
+    state.selectedFile = null;
+    state.isProcessing = false;
+    
+    elements.clipInput.value = '';
+    elements.uploadZone.classList.remove('hidden');
+    elements.filePreview.classList.add('hidden');
+    elements.processing.classList.add('hidden');
+    elements.results.classList.add('hidden');
+    elements.progressBar.style.width = '0%';
+    elements.meterFill.style.strokeDashoffset = 251;
+    elements.confidenceValue.textContent = '0';
+    elements.confidenceLabel.textContent = 'ANALYZING';
+    elements.confidenceLabel.className = 'meter-status';
+}
+
+// ============================================================
+// Library Page
+// ============================================================
+
+function initLibraryPage() {
+    // Upload reference
+    elements.uploadReference.addEventListener('click', () => {
+        elements.referenceInput.click();
+    });
+    
+    elements.referenceInput.addEventListener('change', handleReferenceUpload);
+    
+    // Index all button
+    elements.indexAllBtn.addEventListener('click', indexDirectory);
+    
+    // Modal close
+    elements.modalClose.addEventListener('click', closeModal);
+    document.querySelector('.modal-overlay')?.addEventListener('click', closeModal);
+}
+
+async function loadLibrary() {
+    try {
+        const response = await fetch(`${API_BASE}/references`);
+        const data = await response.json();
+        
+        if (data.success) {
+            state.references = data.videos;
+            
+            // Update stats
+            elements.statVideos.textContent = data.stats.indexed_videos;
+            elements.statFrames.textContent = formatNumber(data.stats.total_frames);
+            elements.statDuration.textContent = data.stats.total_duration_formatted;
+            
+            renderLibrary();
+        }
+    } catch (error) {
+        showToast('error', 'Failed to load library');
+    }
+}
+
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+}
+
+function renderLibrary() {
+    if (state.references.length === 0) {
+        elements.emptyLibrary.classList.remove('hidden');
+        return;
+    }
+    
+    elements.emptyLibrary.classList.add('hidden');
+    
+    // Remove old cards
+    document.querySelectorAll('.video-card').forEach(el => el.remove());
+    
+    state.references.forEach(video => {
+        const card = createVideoCard(video);
+        elements.libraryList.appendChild(card);
+    });
+}
+
+function createVideoCard(video) {
+    const card = document.createElement('div');
+    card.className = 'video-card';
+    card.innerHTML = `
+        <div class="video-icon">🎬</div>
+        <div class="video-info">
+            <div class="video-title">${escapeHtml(video.title || video.filename)}</div>
+            <div class="video-meta">
+                <span>⏱ ${video.duration_formatted}</span>
+                <span>📐 ${video.resolution}</span>
+                <span>🖼 ${formatNumber(video.frame_count)} frames</span>
+            </div>
+        </div>
+        <span class="video-status ${video.status}">${video.status.toUpperCase()}</span>
+        <div class="video-actions">
+            <button class="btn-video-action delete" data-id="${video.id}" title="Remove">🗑</button>
+        </div>
+    `;
+    
+    // Delete button
+    card.querySelector('.delete').addEventListener('click', () => deleteVideo(video.id));
+    
+    return card;
+}
+
+async function handleReferenceUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const ext = file.name.split('.').pop().toLowerCase();
+    const validExts = ['mp4', 'avi', 'mkv', 'mov', 'webm', 'flv'];
+    
+    if (!validExts.includes(ext)) {
+        showToast('error', 'Unsupported file format');
+        return;
+    }
+    
+    // Show modal
+    elements.uploadModal.classList.remove('hidden');
+    elements.indexFileName.textContent = file.name;
+    elements.indexStatus.textContent = 'Uploading and indexing...';
+    elements.indexBarFill.style.width = '0%';
+    
+    // Simulate progress
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress += Math.random() * 10;
+        if (progress > 90) progress = 90;
+        elements.indexBarFill.style.width = progress + '%';
+    }, 500);
+    
+    try {
+        const formData = new FormData();
+        formData.append('video', file);
+        
+        const response = await fetch(`${API_BASE}/references`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        clearInterval(progressInterval);
+        elements.indexBarFill.style.width = '100%';
+        
+        if (data.success) {
+            elements.indexStatus.textContent = `Indexed ${data.frames_indexed} frames`;
+            showToast('success', 'Video indexed successfully');
+            
+            setTimeout(() => {
+                closeModal();
+                loadLibrary();
+            }, 1500);
+        } else {
+            elements.indexStatus.textContent = 'Error: ' + data.error;
+            showToast('error', data.error);
+        }
+        
+    } catch (error) {
+        clearInterval(progressInterval);
+        elements.indexStatus.textContent = 'Upload failed';
+        showToast('error', 'Failed to upload video');
+    }
+    
+    elements.referenceInput.value = '';
+}
+
+async function indexDirectory() {
+    showToast('info', 'Indexing all videos in references directory...');
+    
+    try {
+        const response = await fetch(`${API_BASE}/references/index-directory`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const indexed = data.indexed?.length || 0;
+            const skipped = data.skipped?.length || 0;
+            const failed = data.failed?.length || 0;
+            
+            showToast('success', `Indexed: ${indexed}, Skipped: ${skipped}, Failed: ${failed}`);
+            loadLibrary();
+        } else {
+            showToast('error', data.error);
+        }
+    } catch (error) {
+        showToast('error', 'Failed to index directory');
+    }
+}
+
+async function deleteVideo(id) {
+    if (!confirm('Remove this video from the index?')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/references/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('success', 'Video removed');
+            loadLibrary();
+        } else {
+            showToast('error', data.error);
+        }
+    } catch (error) {
+        showToast('error', 'Failed to remove video');
+    }
+}
+
+function closeModal() {
+    elements.uploadModal.classList.add('hidden');
+}
+
+// ============================================================
+// History Page
+// ============================================================
+
+async function loadHistory() {
+    try {
+        const response = await fetch(`${API_BASE}/match/history`);
+        const data = await response.json();
+        
+        if (data.success) {
+            state.history = data.history;
+            renderHistory();
+        }
+    } catch (error) {
+        showToast('error', 'Failed to load history');
+    }
+}
+
+function renderHistory() {
+    if (state.history.length === 0) {
+        elements.emptyHistory.classList.remove('hidden');
+        return;
+    }
+    
+    elements.emptyHistory.classList.add('hidden');
+    
+    // Remove old items
+    document.querySelectorAll('.history-item').forEach(el => el.remove());
+    
+    state.history.forEach(item => {
+        const el = createHistoryItem(item);
+        elements.historyList.appendChild(el);
+    });
+}
+
+function createHistoryItem(item) {
+    const confidence = item.confidence_score;
+    let colorClass = 'weak';
+    if (confidence >= 80) colorClass = 'very-strong';
+    else if (confidence >= 60) colorClass = 'strong';
+    else if (confidence >= 30) colorClass = 'possible';
+    
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.innerHTML = `
+        <div class="history-confidence ${colorClass}">
+            <span class="confidence-number">${Math.round(confidence)}</span>
+            <span class="confidence-label-small">CCS</span>
+        </div>
+        <div class="history-details">
+            <div class="history-query">${escapeHtml(item.query_filename)}</div>
+            <div class="history-match">${item.matched_video ? 'Matched: ' + escapeHtml(item.matched_video.title || item.matched_video.filename) : 'No match found'}</div>
+            <div class="history-meta">
+                ${item.timestamp_range || ''} • ${formatDate(item.queried_at)}
+            </div>
+        </div>
+    `;
+    
+    return div;
+}
+
+function formatDate(isoString) {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// ============================================================
+// Toast Notifications
+// ============================================================
+
+function showToast(type, message) {
+    const icons = {
+        success: '✓',
+        error: '✕',
+        info: 'ℹ'
+    };
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <span class="toast-icon">${icons[type]}</span>
+        <span class="toast-message">${escapeHtml(message)}</span>
+        <button class="toast-close">✕</button>
+    `;
+    
+    toast.querySelector('.toast-close').addEventListener('click', () => {
+        toast.remove();
+    });
+    
+    elements.toastContainer.appendChild(toast);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 5000);
+}
+
+// ============================================================
+// Utilities
+// ============================================================
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// ============================================================
+// Initialize
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    initNavigation();
+    initMatchPage();
+    initLibraryPage();
+    
+    // Check API health
+    fetch(`${API_BASE}/health`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'healthy') {
+                console.log('ClipMatch API connected');
+            }
+        })
+        .catch(() => {
+            showToast('error', 'Cannot connect to ClipMatch API. Make sure the server is running.');
+        });
+});

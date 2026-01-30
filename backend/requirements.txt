@@ -1,0 +1,24 @@
+# ClipMatch - Backend Dependencies
+# Video Processing
+opencv-python>=4.8.0
+ffmpeg-python>=0.2.0
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.9
+
+# Feature Extraction
+imagehash>=4.3.1
+Pillow>=10.0.0,<10.1.0
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Web Framework
+flask==3.0.0
+flask-cors==4.0.0
+werkzeug==3.0.1
+
+# Database
+sqlalchemy==2.0.23
+
+# Utilities
+python-dotenv==1.0.0
+tqdm==4.66.1
