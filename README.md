@@ -30,6 +30,56 @@ ClipMatch is a content-based video matching system designed to determine whether
 - **Match History**: Track previous analysis results
 - **CPU-Only**: Designed to run without GPU requirements
 
+## 🛠️ Tech Stack
+
+<table>
+<tr>
+<td align="center" width="50%">
+
+### 🔙 Backend
+</td>
+<td align="center" width="50%">
+
+### 🎨 Frontend
+</td>
+</tr>
+<tr>
+<td align="center">
+
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white)
+
+</td>
+<td align="center">
+
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+
+</td>
+</tr>
+</table>
+
+### 📦 Core Dependencies
+
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| **Web Framework** | Flask 3.0 | REST API & static file serving |
+| **Database** | SQLAlchemy + SQLite | ORM & persistent storage |
+| **Video Processing** | OpenCV | Frame extraction & preprocessing |
+| **Media Handling** | FFmpeg + imageio | Video decoding & format support |
+| **Feature Extraction** | ImageHash | Perceptual hashing (pHash, dHash, wHash) |
+| **Image Processing** | Pillow | Image manipulation & conversion |
+| **Scientific Computing** | NumPy + SciPy | Numerical operations & algorithms |
+| **CORS Support** | Flask-CORS | Cross-origin resource sharing |
+
+### 🔧 Development Tools
+
+- **Testing**: pytest
+- **Code Style**: flake8, black
+- **Version Control**: Git
+
 ## Project Structure
 
 ```
