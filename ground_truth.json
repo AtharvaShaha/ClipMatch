@@ -1,0 +1,97 @@
+{
+  "query_001.mp4": {
+    "source_video": "video_081.mp4",
+    "start_sec": 5.01,
+    "end_sec": 20.01
+  },
+  "query_002.mp4": {
+    "source_video": "video_094.mp4",
+    "start_sec": 12.38,
+    "end_sec": 27.38
+  },
+  "query_003.mp4": {
+    "source_video": "video_028.mp4",
+    "start_sec": 6.28,
+    "end_sec": 21.28
+  },
+  "query_004.mp4": {
+    "source_video": "video_013.mp4",
+    "start_sec": 30.45,
+    "end_sec": 45.45
+  },
+  "query_005.mp4": {
+    "source_video": "video_069.mp4",
+    "start_sec": 3.91,
+    "end_sec": 18.91
+  },
+  "query_006.mp4": {
+    "source_video": "video_054.mp4",
+    "start_sec": 1.43,
+    "end_sec": 16.43
+  },
+  "query_007.mp4": {
+    "source_video": "video_011.mp4",
+    "start_sec": 9.84,
+    "end_sec": 24.84
+  },
+  "query_008.mp4": {
+    "source_video": "video_064.mp4",
+    "start_sec": 27.09,
+    "end_sec": 42.09
+  },
+  "query_009.mp4": {
+    "source_video": "video_071.mp4",
+    "start_sec": 8.95,
+    "end_sec": 23.95
+  },
+  "query_010.mp4": {
+    "source_video": "video_083.mp4",
+    "start_sec": 31.56,
+    "end_sec": 46.56
+  },
+  "query_011.mp4": {
+    "source_video": "video_053.mp4",
+    "start_sec": 9.92,
+    "end_sec": 24.92
+  },
+  "query_012.mp4": {
+    "source_video": "video_075.mp4",
+    "start_sec": 12.52,
+    "end_sec": 27.52
+  },
+  "query_013.mp4": {
+    "source_video": "video_000.mp4",
+    "start_sec": 34.15,
+    "end_sec": 49.15
+  },
+  "query_014.mp4": {
+    "source_video": "video_020.mp4",
+    "start_sec": 31.42,
+    "end_sec": 46.42
+  },
+  "query_015.mp4": {
+    "source_video": "video_043.mp4",
+    "start_sec": 12.5,
+    "end_sec": 27.5
+  },
+  "query_016.mp4": {
+    "source_video": "video_027.mp4",
+    "start_sec": 43.07,
+    "end_sec": 58.07
+  },
+  "query_017.mp4": {
+    "source_video": "video_043.mp4",
+    "start_sec": 4.6,
+    "end_sec": 19.6
+  },
+  "query_018.mp4": {
+    "source_video": "video_048.mp4",
+    "start_sec": 4.35,
+    "end_sec": 19.35
+  },
+  "query_019.mp4": {
+    "source_video": "video_044.mp4",
+    "start_sec": 27.17,
+    "end_sec": 42.17
+  }
+}
