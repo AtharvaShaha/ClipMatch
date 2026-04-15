@@ -1,6 +1,6 @@
 """
 ClipMatch Feature Extractor
-Handles perceptual hashing and feature extraction from video frames
+Handles dual perceptual hashing (pHash + dHash) for robust frame matching
 """
 
 import imagehash
@@ -14,93 +14,203 @@ from config import FeatureConfig
 
 class FeatureExtractor:
     """
-    Extracts visual features from video frames using perceptual hashing.
+    Extracts visual features from video frames using dual perceptual hashing.
     
-    Perceptual hashes are designed to produce similar outputs for visually
-    similar images, making them ideal for content matching.
+    Uses pHash (DCT-based, global structure) and dHash (gradient-based, edges)
+    together for maximum robustness across different video encodings.
     """
+    
+    HASH_SIZE = 8  # 8x8 = 64-bit hashes
+    HAMMING_THRESHOLD = 10  # Out of 64 bits, allow up to 10 bits different
     
     def __init__(self, hash_size: int = None):
         """
         Initialize the feature extractor.
         
         Args:
-            hash_size: Size of the hash (default from config)
+            hash_size: Size of the hash (default 8x8 = 64 bits)
         """
-        self.hash_size = hash_size or FeatureConfig.HASH_SIZE
-        self.algorithms = FeatureConfig.HASH_ALGORITHMS
-        self.primary_hash = FeatureConfig.PRIMARY_HASH
+        self.hash_size = hash_size or self.HASH_SIZE
     
-    def extract_features(self, frame: np.ndarray) -> Dict[str, str]:
+    def extract_dual_hash(self, frame: np.ndarray) -> Dict[str, str]:
         """
-        Extract all configured hash features from a frame.
+        Extract dual hashes (pHash + dHash) from a frame.
+        
+        pHash: Captures global structure using DCT - robust to brightness/compression
+        dHash: Captures edges/gradients - robust to scaling
         
         Args:
-            frame: RGB frame as numpy array
+            frame: Grayscale frame as numpy array (already preprocessed)
             
         Returns:
-            Dictionary mapping hash algorithm names to hash hex strings
+            Dict with 'phash' and 'dhash' as hex strings
         """
-        # Convert numpy array to PIL Image
-        pil_image = Image.fromarray(frame.astype('uint8'))
+        # Convert grayscale numpy array to PIL Image
+        # If frame is already in uint8 format, use directly
+        if frame.dtype != np.uint8:
+            frame = (frame * 255).astype(np.uint8) if frame.max() <= 1 else frame.astype(np.uint8)
+        
+        # Convert to 3-channel for imagehash (library expects RGB)
+        if len(frame.shape) == 2:
+            frame_rgb = np.stack([frame] * 3, axis=2)
+        else:
+            frame_rgb = frame
+        
+        pil_image = Image.fromarray(frame_rgb.astype(np.uint8))
         
         features = {}
         
-        for algo in self.algorithms:
-            hash_value = self._compute_hash(pil_image, algo)
-            if hash_value is not None:
-                features[algo] = str(hash_value)
+        try:
+            # pHash: Perceptual hash using DCT (Discrete Cosine Transform)
+            # Captures overall structure - resilient to re-encoding
+            phash = imagehash.phash(pil_image, hash_size=self.hash_size)
+            features['phash'] = str(phash)
+        except Exception as e:
+            print(f"pHash extraction failed: {e}")
+            features['phash'] = None
+        
+        try:
+            # dHash: Difference hash - compares adjacent pixels
+            # Captures edges and gradients - good for structural matching
+            dhash = imagehash.dhash(pil_image, hash_size=self.hash_size)
+            features['dhash'] = str(dhash)
+        except Exception as e:
+            print(f"dHash extraction failed: {e}")
+            features['dhash'] = None
         
         return features
     
-    def extract_primary_hash(self, frame: np.ndarray) -> str:
+    def extract_features(self, frame: np.ndarray) -> Dict[str, str]:
         """
-        Extract only the primary hash from a frame.
+        Extract all features (pHash + dHash + wHash) from a frame.
+        
+        This is a wrapper around extract_dual_hash that also adds wavelet hash.
         
         Args:
-            frame: RGB frame as numpy array
+            frame: Grayscale frame as numpy array (already preprocessed)
             
         Returns:
-            Primary hash as hex string
+            Dict with 'phash', 'dhash', and 'whash' as hex strings
         """
-        pil_image = Image.fromarray(frame.astype('uint8'))
-        hash_value = self._compute_hash(pil_image, self.primary_hash)
-        return str(hash_value) if hash_value else ""
-    
-    def _compute_hash(self, image: Image.Image, algorithm: str) -> Optional[imagehash.ImageHash]:
-        """
-        Compute a specific perceptual hash.
+        # Get dual hashes
+        features = self.extract_dual_hash(frame)
         
-        Args:
-            image: PIL Image
-            algorithm: Hash algorithm name ('phash', 'dhash', 'whash', 'ahash')
-            
-        Returns:
-            ImageHash object or None if algorithm not supported
-        """
+        # Add wavelet hash
         try:
-            if algorithm == 'phash':
-                # Perceptual hash using DCT (most robust to scaling/compression)
-                return imagehash.phash(image, hash_size=self.hash_size)
+            # Convert grayscale numpy array to PIL Image
+            if frame.dtype != np.uint8:
+                frame = (frame * 255).astype(np.uint8) if frame.max() <= 1 else frame.astype(np.uint8)
             
-            elif algorithm == 'dhash':
-                # Difference hash (fast, good for gradient detection)
-                return imagehash.dhash(image, hash_size=self.hash_size)
-            
-            elif algorithm == 'whash':
-                # Wavelet hash (good for texture detection)
-                return imagehash.whash(image, hash_size=self.hash_size)
-            
-            elif algorithm == 'ahash':
-                # Average hash (fastest, least robust)
-                return imagehash.average_hash(image, hash_size=self.hash_size)
-            
+            # Convert to 3-channel for imagehash (library expects RGB)
+            if len(frame.shape) == 2:
+                frame_rgb = np.stack([frame] * 3, axis=2)
             else:
-                return None
-                
+                frame_rgb = frame
+            
+            pil_image = Image.fromarray(frame_rgb.astype(np.uint8))
+            
+            # wHash: Wavelet hash using Haar wavelets
+            # Captures multi-scale structure
+            whash = imagehash.whash(pil_image, hash_size=self.hash_size)
+            features['whash'] = str(whash)
         except Exception as e:
-            print(f"Error computing {algorithm}: {e}")
-            return None
+            print(f"wHash extraction failed: {e}")
+            features['whash'] = None
+        
+        return features
+    
+    def batch_extract(self, frames: List[np.ndarray]) -> List[Dict[str, str]]:
+        """
+        Extract dual hashes from multiple frames.
+        
+        Args:
+            frames: List of preprocessed grayscale frames
+            
+        Returns:
+            List of feature dictionaries, one per frame
+        """
+        return [self.extract_dual_hash(frame) for frame in frames]
+    
+    @staticmethod
+    def hamming_distance(hash1_str: str, hash2_str: str) -> int:
+        """
+        Calculate Hamming distance between two hash strings.
+        Counts number of bits that differ.
+        
+        Args:
+            hash1_str: First hash as hex string
+            hash2_str: Second hash as hex string
+            
+        Returns:
+            Number of differing bits (0-64 for 64-bit hashes)
+        """
+        if hash1_str is None or hash2_str is None:
+            return 999  # High distance if either hash is invalid
+        
+        # Convert hex strings to integers
+        try:
+            h1 = imagehash.ImageHash(hash1_str)
+            h2 = imagehash.ImageHash(hash2_str)
+            return h1 - h2  # imagehash supports subtraction = hamming distance
+        except:
+            return 999
+    
+    @staticmethod
+    def combined_hash_distance(features1: Dict, 
+                               features2: Dict,
+                               phash_weight: float = 0.6,
+                               dhash_weight: float = 0.4) -> float:
+        """
+        Calculate combined distance between two frames using both hashes.
+        
+        Weights emphasize pHash (global structure) slightly more than dHash.
+        
+        Args:
+            features1: First frame's features {'phash': ..., 'dhash': ...}
+            features2: Second frame's features
+            phash_weight: Weight for pHash distance (default 0.6)
+            dhash_weight: Weight for dHash distance (default 0.4)
+            
+        Returns:
+            Normalized combined distance (0-1, where 1 is completely different)
+        """
+        phash_dist = FeatureExtractor.hamming_distance(
+            features1.get('phash'), features2.get('phash')
+        )
+        
+        dhash_dist = FeatureExtractor.hamming_distance(
+            features1.get('dhash'), features2.get('dhash')
+        )
+        
+        # Normalize to 0-1 range (max distance for 64-bit hash is 64)
+        phash_normalized = min(phash_dist / 64.0, 1.0)
+        dhash_normalized = min(dhash_dist / 64.0, 1.0)
+        
+        # Weighted combination
+        combined = (phash_weight * phash_normalized + 
+                   dhash_weight * dhash_normalized)
+        
+        return combined
+    
+    @staticmethod
+    def is_hash_match(features1: Dict, features2: Dict, 
+                     threshold: float = None) -> bool:
+        """
+        Check if two frames match based on dual hashing.
+        
+        Args:
+            features1: First frame's features
+            features2: Second frame's features
+            threshold: Maximum allowed combined distance (default from HAMMING_THRESHOLD)
+            
+        Returns:
+            True if combined distance is below threshold
+        """
+        if threshold is None:
+            threshold = FeatureExtractor.HAMMING_THRESHOLD / 64.0  # Convert to 0-1 range
+        
+        distance = FeatureExtractor.combined_hash_distance(features1, features2)
+        return distance <= threshold
     
     def compute_hash_distance(self, hash1: str, hash2: str) -> int:
         """

@@ -81,8 +81,9 @@ class MatchConfig:
     STRONG_MATCH = 50
     VERY_STRONG_MATCH = 75
     
-    # Minimum confidence to report a match (very low to show all potential matches)
-    MIN_CONFIDENCE_THRESHOLD = 1  # Show anything with even slight similarity
+    # Minimum confidence to report a match
+    # Only return STRONG matches (40%+ is significant, unrelated videos rarely exceed 20%)
+    MIN_CONFIDENCE_THRESHOLD = 40  # Strict minimum for actual matches
 
 
 # Database Configuration

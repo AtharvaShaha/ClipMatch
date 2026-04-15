@@ -3,7 +3,7 @@ ClipMatch - Main Flask Application
 Restricted Source Video Matching System
 """
 
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, render_template
 from flask_cors import CORS
 import os
 import sys
@@ -19,10 +19,11 @@ from models.database import init_db
 def create_app():
     """Create and configure the Flask application."""
     
-    # Initialize Flask app
+    # Initialize Flask app with backend/static as static folder
     app = Flask(__name__, 
-                static_folder='../frontend',
-                static_url_path='')
+                static_folder='static',
+                static_url_path='/static',
+                template_folder='templates')
     
     # Load configuration
     app.config.from_object(FlaskConfig)
@@ -36,16 +37,21 @@ def create_app():
     # Register API blueprint
     app.register_blueprint(api)
     
-    # Serve frontend
+    # Serve templates
     @app.route('/')
-    def serve_frontend():
-        return send_from_directory(app.static_folder, 'index.html')
+    @app.route('/home')
+    def home():
+        return render_template('home.html')
+    
+    @app.route('/app')
+    def app_interface():
+        return render_template('app.html')
     
     @app.route('/<path:path>')
     def serve_static(path):
         if os.path.exists(os.path.join(app.static_folder, path)):
             return send_from_directory(app.static_folder, path)
-        return send_from_directory(app.static_folder, 'index.html')
+        return render_template('app.html')
     
     # Error handlers
     @app.errorhandler(404)
