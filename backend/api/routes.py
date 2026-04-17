@@ -12,6 +12,7 @@ sys.path.append('..')
 from config import UPLOADS_DIR, REFERENCES_DIR, VideoConfig
 from services.indexer import video_indexer
 from services.matcher import clip_matcher
+from services.advanced_matcher import advanced_matcher
 from services.video_processor import video_processor
 
 api = Blueprint('api', __name__, url_prefix='/api')
@@ -191,7 +192,8 @@ def match_clip():
     """
     Match a query clip against indexed reference videos.
     
-    Expects a video file upload with key 'clip'.
+    Expects a video file upload with key 'clip' and optional 'clip_quality'.
+    clip_quality can be 'original' (fast) or 'edited' (deep analysis).
     Returns the best match with confidence score and timestamp range.
     """
     try:
@@ -219,13 +221,22 @@ def match_clip():
                 'error': f'Unsupported format: {ext}'
             }), 400
         
+        # Get clip quality setting (default to 'original')
+        clip_quality = request.form.get('clip_quality', 'original')
+        
         # Save clip temporarily
         filepath = UPLOADS_DIR / filename
         file.save(str(filepath))
         
         try:
-            # Perform matching
-            result = clip_matcher.match_clip(str(filepath))
+            # Select matcher based on clip quality
+            if clip_quality == 'edited':
+                # Use advanced matcher with NCC/SSIM verification
+                result = advanced_matcher.match_clip(str(filepath))
+            else:
+                # Use standard fast matcher (default)
+                result = clip_matcher.match_clip(str(filepath))
+            
             return jsonify(result)
             
         finally:

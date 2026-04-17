@@ -11,6 +11,7 @@ const state = {
     currentPage: 'match',
     selectedFile: null,
     isProcessing: false,
+    clipQuality: 'original', // 'original' or 'edited'
     references: [],
     history: []
 };
@@ -29,6 +30,8 @@ const elements = {
     fileMeta: document.getElementById('fileMeta'),
     removeFile: document.getElementById('removeFile'),
     analyzeBtn: document.getElementById('analyzeBtn'),
+    qualityOriginal: document.getElementById('qualityOriginal'),
+    qualityEdited: document.getElementById('qualityEdited'),
     processing: document.getElementById('processing'),
     processingStatus: document.getElementById('processingStatus'),
     progressBar: document.getElementById('progressBar'),
@@ -79,10 +82,10 @@ function initNavigation() {
         link.addEventListener('click', (e) => {
             const page = link.dataset.page;
             
-            // Handle HOME specially - navigate to home.html
+            // Handle HOME specially - navigate to home route
             if (page === 'home') {
                 e.preventDefault();
-                window.location.href = 'home.html';
+                window.location.href = '/'; // Navigate to home route
                 return;
             }
             
@@ -152,6 +155,17 @@ function initMatchPage() {
     // Analyze button
     elements.analyzeBtn.addEventListener('click', analyzeClip);
     
+    // Quality selector buttons
+    elements.qualityOriginal.addEventListener('click', () => {
+        state.clipQuality = 'original';
+        updateQualityUI();
+    });
+    
+    elements.qualityEdited.addEventListener('click', () => {
+        state.clipQuality = 'edited';
+        updateQualityUI();
+    });
+    
     // Reset button
     elements.resetBtn.addEventListener('click', resetMatchPage);
 }
@@ -190,6 +204,19 @@ function formatFileSize(bytes) {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+function updateQualityUI() {
+    // Update visual state of quality buttons
+    const buttons = document.querySelectorAll('.quality-btn');
+    buttons.forEach(btn => {
+        const quality = btn.getAttribute('data-quality');
+        if (quality === state.clipQuality) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
 async function analyzeClip() {
     if (!state.selectedFile || state.isProcessing) return;
     
@@ -209,7 +236,11 @@ async function analyzeClip() {
         if (progress < 30) {
             elements.processingStatus.textContent = 'Extracting visual signatures...';
         } else if (progress < 60) {
-            elements.processingStatus.textContent = 'Comparing against reference library...';
+            if (state.clipQuality === 'edited') {
+                elements.processingStatus.textContent = 'Running deep analysis on edited clip...';
+            } else {
+                elements.processingStatus.textContent = 'Comparing against reference library...';
+            }
         } else {
             elements.processingStatus.textContent = 'Calculating confidence scores...';
         }
@@ -218,6 +249,7 @@ async function analyzeClip() {
     try {
         const formData = new FormData();
         formData.append('clip', state.selectedFile);
+        formData.append('clip_quality', state.clipQuality);
         
         const response = await fetch(`${API_BASE}/match`, {
             method: 'POST',
@@ -235,8 +267,16 @@ async function analyzeClip() {
         
     } catch (error) {
         clearInterval(progressInterval);
+        console.error('Analysis error:', error);
         showToast('error', 'Analysis failed. Please try again.');
         resetMatchPage();
+    }
+    
+    // Also catch API errors returned in response
+    finally {
+        if (state.isProcessing) {
+            state.isProcessing = false;
+        }
     }
     
     state.isProcessing = false;
@@ -246,9 +286,28 @@ function displayResults(data) {
     elements.processing.classList.add('hidden');
     elements.results.classList.remove('hidden');
     
+    if (!data.success) {
+        // Handle API error
+        elements.matchResult.classList.add('hidden');
+        elements.noMatch.classList.remove('hidden');
+        
+        if (data.error) {
+            console.error('API Error:', data.error);
+            // Show specific error message
+            if (data.error.includes('No reference videos')) {
+                showToast('error', 'No reference videos indexed. Upload videos to the library first.');
+            } else if (data.error.includes('too')) {
+                showToast('error', 'File size or duration issue: ' + data.error);
+            } else {
+                showToast('error', data.error);
+            }
+        }
+        return;
+    }
+    
     elements.processingTime.textContent = `Processed in ${data.processing_time?.toFixed(2) || '?'}s`;
     
-    if (data.success && data.best_match) {
+    if (data.best_match) {
         const match = data.best_match;
         
         elements.matchResult.classList.remove('hidden');

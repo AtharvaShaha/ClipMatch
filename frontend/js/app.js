@@ -11,6 +11,7 @@ const state = {
     currentPage: 'match',
     selectedFile: null,
     isProcessing: false,
+    clipQuality: 'original', // 'original' or 'edited'
     references: [],
     history: []
 };
@@ -29,6 +30,8 @@ const elements = {
     fileMeta: document.getElementById('fileMeta'),
     removeFile: document.getElementById('removeFile'),
     analyzeBtn: document.getElementById('analyzeBtn'),
+    qualityOriginal: document.getElementById('qualityOriginal'),
+    qualityEdited: document.getElementById('qualityEdited'),
     processing: document.getElementById('processing'),
     processingStatus: document.getElementById('processingStatus'),
     progressBar: document.getElementById('progressBar'),
@@ -152,6 +155,17 @@ function initMatchPage() {
     // Analyze button
     elements.analyzeBtn.addEventListener('click', analyzeClip);
     
+    // Quality selector buttons
+    elements.qualityOriginal.addEventListener('click', () => {
+        state.clipQuality = 'original';
+        updateQualityUI();
+    });
+    
+    elements.qualityEdited.addEventListener('click', () => {
+        state.clipQuality = 'edited';
+        updateQualityUI();
+    });
+    
     // Reset button
     elements.resetBtn.addEventListener('click', resetMatchPage);
 }
@@ -190,6 +204,19 @@ function formatFileSize(bytes) {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+function updateQualityUI() {
+    // Update visual state of quality buttons
+    const buttons = document.querySelectorAll('.quality-btn');
+    buttons.forEach(btn => {
+        const quality = btn.getAttribute('data-quality');
+        if (quality === state.clipQuality) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
 async function analyzeClip() {
     if (!state.selectedFile || state.isProcessing) return;
     
@@ -209,7 +236,11 @@ async function analyzeClip() {
         if (progress < 30) {
             elements.processingStatus.textContent = 'Extracting visual signatures...';
         } else if (progress < 60) {
-            elements.processingStatus.textContent = 'Comparing against reference library...';
+            if (state.clipQuality === 'edited') {
+                elements.processingStatus.textContent = 'Running deep analysis on edited clip...';
+            } else {
+                elements.processingStatus.textContent = 'Comparing against reference library...';
+            }
         } else {
             elements.processingStatus.textContent = 'Calculating confidence scores...';
         }
@@ -218,6 +249,7 @@ async function analyzeClip() {
     try {
         const formData = new FormData();
         formData.append('clip', state.selectedFile);
+        formData.append('clip_quality', state.clipQuality);
         
         const response = await fetch(`${API_BASE}/match`, {
             method: 'POST',

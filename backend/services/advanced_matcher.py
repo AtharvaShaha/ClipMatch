@@ -46,70 +46,61 @@ class AdvancedClipMatcher:
         self.feature_extractor = FeatureExtractor()
         self.verifier = VerificationEngine()
     
-    def preprocess_and_extract_frames(self, video_path: str, 
-                                     sample_rate: float = 4.0) -> Dict:
+    def preprocess_and_extract_frames(self, video_path: str) -> Dict:
         """
-        Extract, preprocess, and extract features from all frames in a video.
+        Extract and extract features from all frames in a video.
         
         Args:
             video_path: Path to video file
-            sample_rate: Frames per second to extract (default 4 fps)
             
         Returns:
             Dictionary with frames, features, and metadata
         """
-        # Extract raw frames at specified sample rate
-        raw_frames = self.video_processor.extract_frames(video_path, sample_rate)
+        # Extract frames as tuples (frame_number, timestamp, frame_image)
+        frames_list = self.video_processor.extract_all_frames_to_list(video_path, max_frames=40)
         
-        if not raw_frames:
+        if not frames_list:
             return {
                 'success': False,
                 'error': 'Could not extract frames',
-                'frames': [],
                 'features': []
             }
         
-        # Preprocess all frames (grayscale, resize, crop, equalize)
-        preprocessed = self.preprocessor.batch_preprocess_frames(raw_frames)
-        
-        # Extract dual hashes for all frames
-        features = self.feature_extractor.batch_extract(preprocessed)
+        # Extract features directly from frame tuples
+        # batch_extract expects List[Tuple[int, float, np.ndarray]]
+        features = self.feature_extractor.batch_extract(frames_list)
         
         return {
             'success': True,
-            'raw_frames': raw_frames,
-            'preprocessed_frames': preprocessed,
             'features': features,
-            'frame_count': len(preprocessed)
+            'frame_count': len(features)
         }
     
-    def select_query_keyframes(self, clip_frames: List[np.ndarray],
+    def select_query_keyframes(self, clip_features: List[Dict],
                                num_keyframes: int = 8) -> Dict:
         """
-        Select keyframes from query clip.
+        Select keyframes from query clip features.
         
         Args:
-            clip_frames: Preprocessed frames from clip
+            clip_features: Features extracted from clip frames
             num_keyframes: Number of keyframes to select
             
         Returns:
-            Dictionary with keyframe indices and features
+            Dictionary with keyframe features
         """
-        keyframe_indices = self.preprocessor.select_keyframes(
-            clip_frames, 
-            num_keyframes=num_keyframes
-        )
+        # For simplified advanced matcher, use evenly distributed frames
+        if len(clip_features) <= num_keyframes:
+            keyframe_indices = list(range(len(clip_features)))
+        else:
+            step = len(clip_features) // num_keyframes
+            keyframe_indices = [i * step for i in range(num_keyframes)]
         
-        keyframe_features = [clip_frames[i] for i in keyframe_indices]
-        
-        # Extract hashes for keyframes
-        keyframe_hashes = self.feature_extractor.batch_extract(keyframe_features)
+        keyframe_features = [clip_features[i] for i in keyframe_indices]
         
         return {
             'keyframe_indices': keyframe_indices,
-            'keyframe_frames': keyframe_features,
-            'keyframe_hashes': keyframe_hashes,
-            'num_keyframes': len(keyframe_indices)
+            'keyframe_features': keyframe_features,
+            'num_keyframes': len(keyframe_features)
         }
     
     def early_rejection_filter(self, clip_hashes: List[Dict],
@@ -344,6 +335,7 @@ class AdvancedClipMatcher:
                    verbose: bool = False) -> Dict:
         """
         Complete end-to-end matching pipeline.
+        Uses standard matching like clip_matcher, can be expanded with NCC verification later.
         
         Args:
             clip_path: Path to query clip
@@ -355,9 +347,21 @@ class AdvancedClipMatcher:
         import time
         start_time = time.time()
         
-        # Step 1: Extract and preprocess clip
+        # Step 1: Validate clip
+        is_valid, message = self.video_processor.validate_query_clip(clip_path)
+        if not is_valid:
+            return {
+                'success': False,
+                'error': message,
+                'matches': []
+            }
+        
+        # Step 2: Get clip info
+        clip_info = self.video_processor.get_video_info(clip_path)
+        
+        # Step 3: Extract and preprocess clip
         if verbose:
-            print("Step 1: Extracting and preprocessing clip...")
+            print("Extracting and preprocessing clip...")
         clip_data = self.preprocess_and_extract_frames(clip_path)
         
         if not clip_data['success']:
@@ -367,12 +371,7 @@ class AdvancedClipMatcher:
                 'matches': []
             }
         
-        # Step 2: Select keyframes from clip
-        if verbose:
-            print("Step 2: Selecting distinctive keyframes...")
-        keyframe_data = self.select_query_keyframes(clip_data['preprocessed_frames'])
-        
-        # Step 3: Get all reference videos
+        # Step 4: Get all reference videos and match
         session = get_session()
         try:
             references = session.query(ReferenceVideo).filter(
@@ -388,63 +387,42 @@ class AdvancedClipMatcher:
             
             all_matches = []
             
-            # Step 4: Search in each reference video
+            # Step 5: Search in each reference video
             for ref_idx, ref_video in enumerate(references):
                 if verbose:
-                    print(f"Step 3: Searching in {ref_video.filename} ({ref_idx+1}/{len(references)})...")
+                    print(f"Searching in {ref_video.filename} ({ref_idx+1}/{len(references)})...")
                 
                 # Get reference video features from database
                 ref_frames_query = session.query(VideoFrame).filter(
                     VideoFrame.video_id == ref_video.id
-                ).order_by(VideoFrame.frame_index).all()
+                ).order_by(VideoFrame.frame_number).all()
                 
                 if not ref_frames_query:
                     continue
                 
+                # Build reference feature list
                 ref_features = [
                     {
                         'phash': f.phash,
-                        'dhash': f.dhash
+                        'dhash': f.dhash,
+                        'whash': getattr(f, 'whash', f.phash),  # Fallback if whash not available
+                        'brightness': getattr(f, 'brightness', 0.5),
+                        'avg_color_r': getattr(f, 'avg_color_r', 128),
+                        'avg_color_g': getattr(f, 'avg_color_g', 128),
+                        'avg_color_b': getattr(f, 'avg_color_b', 128),
+                        'timestamp': f.timestamp,
+                        'frame_number': f.frame_number
                     }
                     for f in ref_frames_query
                 ]
                 
-                # Find candidates
-                candidates = self.find_candidates_in_reference(
-                    keyframe_data, ref_video, ref_features
+                # Match clip features against reference
+                match_result = self._match_against_reference(
+                    clip_data['features'], ref_video, ref_features
                 )
                 
-                # Step 5: Verify candidates with NCC/SSIM
-                for candidate in candidates[:3]:  # Top 3 candidates only
-                    if verbose:
-                        print(f"  Verifying candidate at position {candidate['anchor_position']}...")
-                    
-                    # Get raw frames for this segment
-                    # (would need to extract from video file - for now use hash score)
-                    verification = {
-                        'avg_ncc': 0.9,  # Placeholder
-                        'avg_ssim': 0.88
-                    }
-                    
-                    # Compute final confidence
-                    confidence = self.compute_final_confidence(
-                        candidate['match_score'],
-                        verification['avg_ncc'],
-                        verification['avg_ssim']
-                    )
-                    
-                    if confidence >= 50:  # Minimum confidence threshold
-                        all_matches.append({
-                            'video_id': ref_video.id,
-                            'video_filename': ref_video.filename,
-                            'timestamp': candidate['anchor_position'] / (ref_video.fps or 30),
-                            'match_score': candidate['match_score'],
-                            'ncc_score': verification['avg_ncc'],
-                            'ssim_score': verification['avg_ssim'],
-                            'confidence': confidence,
-                            'matches': candidate['matches'],
-                            'total_keyframes': candidate['total']
-                        })
+                if match_result and match_result['confidence'] >= 50:
+                    all_matches.append(match_result)
             
             # Sort by confidence
             all_matches.sort(key=lambda x: x['confidence'], reverse=True)
@@ -454,13 +432,163 @@ class AdvancedClipMatcher:
             return {
                 'success': True,
                 'matches': all_matches,
+                'best_match': all_matches[0] if all_matches else None,
                 'processing_time': elapsed,
-                'clip_keyframes': keyframe_data['num_keyframes'],
+                'clip_frames': clip_data['frame_count'],
                 'reference_videos_searched': len(references)
             }
         
         finally:
             session.close()
+    
+    def _match_against_reference(self, clip_features: List[Dict],
+                                reference: ReferenceVideo,
+                                ref_features: List[Dict]) -> Optional[Dict]:
+        """
+        Match clip features against a reference video using EXACT same logic as regular matcher.
+        
+        Args:
+            clip_features: Features from query clip (from batch_extract)
+            reference: Reference video record
+            ref_features: Features from reference video
+            
+        Returns:
+            Match result dictionary or None
+        """
+        if not clip_features or not ref_features:
+            return None
+        
+        # Build reference feature tuples like regular matcher does
+        ref_hashes = [
+            (f.get('frame_number', i), f.get('timestamp', 0), 
+             f.get('phash', ''), f.get('dhash', ''), f.get('whash', ''),
+             f.get('brightness', 0.5), f.get('avg_color_r', 128),
+             f.get('avg_color_g', 128), f.get('avg_color_b', 128))
+            for i, f in enumerate(ref_features)
+        ]
+        
+        # Use EXACT same matching as regular matcher
+        hash_matches = []
+        color_matches = []
+        all_distances = []
+        
+        lenient_threshold = 32
+        
+        for i, clip_feat in enumerate(clip_features):
+            # Get all hashes and colors from clip
+            clip_phash = clip_feat.get('phash', '')
+            clip_dhash = clip_feat.get('dhash', '')
+            clip_whash = clip_feat.get('whash', '')
+            clip_brightness = clip_feat.get('brightness', 0.5)
+            clip_r = clip_feat.get('avg_color_r', 128)
+            clip_g = clip_feat.get('avg_color_g', 128)
+            clip_b = clip_feat.get('avg_color_b', 128)
+            
+            best_hash_distance = 999
+            best_color_distance = 999
+            best_timestamp = None
+            best_combined = 999
+            
+            # Compare against all reference frames
+            for ref_id, ref_ts, ref_phash, ref_dhash, ref_whash, ref_brightness, ref_r, ref_g, ref_b in ref_hashes:
+                # Compute distances using ALL three hash algorithms
+                phash_dist = self.feature_extractor.compute_hash_distance(
+                    clip_phash, ref_phash
+                ) if clip_phash and ref_phash else 64
+                
+                dhash_dist = self.feature_extractor.compute_hash_distance(
+                    clip_dhash, ref_dhash
+                ) if clip_dhash and ref_dhash else 64
+                
+                whash_dist = self.feature_extractor.compute_hash_distance(
+                    clip_whash, ref_whash
+                ) if clip_whash and ref_whash else 64
+                
+                # Average of all three hash algorithms
+                avg_hash_distance = (phash_dist + dhash_dist + whash_dist) / 3.0
+                
+                # Color distance (normalized to 0-255 scale)
+                color_diff = (abs(clip_r - (ref_r or 128)) + 
+                             abs(clip_g - (ref_g or 128)) + 
+                             abs(clip_b - (ref_b or 128))) / 3
+                brightness_diff = abs(clip_brightness - (ref_brightness or 0.5)) * 255
+                color_distance = (color_diff + brightness_diff) / 2
+                
+                # Combined score
+                combined = (avg_hash_distance * 0.5) + (color_distance * 0.5)
+                
+                if combined < best_combined:
+                    best_combined = combined
+                    best_hash_distance = avg_hash_distance
+                    best_color_distance = color_distance
+                    best_timestamp = ref_ts
+            
+            all_distances.append(best_hash_distance)
+            # Match if either hash is good OR color is good
+            hash_matches.append(1 if best_hash_distance <= lenient_threshold else 0)
+            color_matches.append(1 if best_color_distance < 80 else 0)
+        
+        # Calculate match statistics (exact same as regular matcher)
+        hash_match_ratio = sum(hash_matches) / len(hash_matches) if hash_matches else 0
+        color_match_ratio = sum(color_matches) / len(color_matches) if color_matches else 0
+        
+        # Average distance metrics
+        avg_distance = sum(all_distances) / len(all_distances) if all_distances else 999
+        min_distance = min(all_distances) if all_distances else 999
+        
+        # Calculate confidence (exact same formula as regular matcher)
+        scores = []
+        
+        # Hash score
+        hash_score = hash_match_ratio * 100
+        scores.append(('hash_ratio', hash_match_ratio))
+        
+        # Color score
+        color_score = color_match_ratio * 100
+        scores.append(('color_ratio', color_match_ratio))
+        
+        # Distance score (lower is better)
+        distance_score = max(0, 100 - (avg_distance * 4))
+        scores.append(('avg_distance', avg_distance))
+        
+        # Confidence is weighted combination
+        confidence = (hash_score * 0.35) + (color_score * 0.30) + (distance_score * 0.35)
+        
+        # Bonuses for very good matches
+        if min_distance < 12:
+            confidence += 15
+        elif min_distance < 16:
+            confidence += 10
+        elif min_distance < 20:
+            confidence += 5
+        
+        confidence = min(100, confidence)
+        
+        # Only return if confidence meets threshold
+        if confidence < 40:
+            return None
+        
+        # Find best matching position
+        best_pos = 0
+        min_dist_idx = all_distances.index(min(all_distances)) if all_distances else 0
+        best_timestamp = ref_hashes[min_dist_idx][1] if min_dist_idx < len(ref_hashes) else 0
+        
+        return {
+            'video_id': reference.id,
+            'video_filename': reference.filename,
+            'confidence': confidence,
+            'match_ratio': hash_match_ratio,
+            'matches': sum(hash_matches),
+            'total_frames': len(clip_features),
+            'hash_match_ratio': hash_match_ratio,
+            'color_match_ratio': color_match_ratio,
+            'avg_distance': avg_distance,
+            'min_distance': min_distance,
+            'start_timestamp': max(0, best_timestamp - 2),
+            'end_timestamp': best_timestamp + 2,
+            'timestamp': best_timestamp,
+            'details': {k: v for k, v in scores}
+        }
 
 
 # Global instance

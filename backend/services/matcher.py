@@ -259,17 +259,12 @@ class ClipMatcher:
         )
         
         # Aggressive bonus for frames with good distance match (key for finding clips in large videos)
-        if min_distance < 20:
-            confidence += 25  # Strong frame match bonus
-        elif min_distance < 32:
-            confidence += 20  # Very good frame match bonus
-        elif min_distance < 48:
+        if min_distance < 12:
             confidence += 15  # Good frame match bonus
-        elif min_distance < 64:
-            confidence += 10  # Decent frame match bonus
-        else:
-            # Even weak frame matches get some credit (important for highly compressed/re-encoded videos)
-            confidence += max(0, 5 - (min_distance - 64) / 16)
+        elif min_distance < 16:
+            confidence += 10  # Moderate frame match bonus
+        elif min_distance < 20:
+            confidence += 5  # Small frame match bonus
         
         # Temporal consistency boost
         temporal_boost = self._calculate_temporal_consistency(
@@ -285,34 +280,34 @@ class ClipMatcher:
         
         rejection_reasons = []
         
-        # Check 1: Very strict hash match ratio (at least 40% of frames must match well)
-        # Random unrelated videos will have near 0% match rate
-        if hash_match_ratio < 0.40:
-            rejection_reasons.append(f"Hash match ratio {hash_match_ratio*100:.0f}% (FAIL - need ≥40%)")
+        # Check 1: STRICT hash match ratio (at least 60% of frames must match well)
+        # This ensures we have strong frame-level agreement
+        if hash_match_ratio < 0.60:
+            rejection_reasons.append(f"Hash match ratio {hash_match_ratio*100:.0f}% (FAIL - need ≥60%)")
         
-        # Check 2: Very strict average distance (max 20 bits = ~31% different)
-        # Unrelated videos will have distance > 40 bits
-        if avg_distance > 20:
-            rejection_reasons.append(f"Avg distance {avg_distance:.1f} bits (FAIL - max 20)")
+        # Check 2: VERY STRICT average distance (max 16 bits = ~25% different)
+        # Only nearly identical frames should match
+        if avg_distance > 16:
+            rejection_reasons.append(f"Avg distance {avg_distance:.1f} bits (FAIL - max 16)")
         
-        # Check 3: Strict color match (at least 50% of frames must match colors)
-        if color_match_ratio < 0.50:
-            rejection_reasons.append(f"Color match ratio {color_match_ratio*100:.0f}% (FAIL - need ≥50%)")
+        # Check 3: STRICT color match (at least 60% of frames must match colors)
+        if color_match_ratio < 0.60:
+            rejection_reasons.append(f"Color match ratio {color_match_ratio*100:.0f}% (FAIL - need ≥60%)")
         
-        # Check 4: High minimum matching frames (at least 50% of clip must match)
+        # Check 4: STRICT matching frames (at least 55% of clip must match)
         matching_frames = sum(hash_matches)
-        min_matching_frames = max(3, int(len(clip_features) * 0.50))  # At least 50% of frames
+        min_matching_frames = max(5, int(len(clip_features) * 0.55))  # At least 55% of frames
         if matching_frames < min_matching_frames:
             rejection_reasons.append(f"Only {matching_frames}/{len(clip_features)} frames matched (FAIL - need ≥{min_matching_frames})")
         
-        # Check 5: High minimum confidence (at least 40% = "strong" match)
-        # This alone is very restrictive - confidence < 40% should be rejected
-        if confidence < 40:
-            rejection_reasons.append(f"Confidence {confidence:.1f}% (FAIL - need ≥40%)")
+        # Check 5: VERY HIGH confidence (at least 50% = very strong match)
+        # This is a strong signal threshold
+        if confidence < 50:
+            rejection_reasons.append(f"Confidence {confidence:.1f}% (FAIL - need ≥50%)")
         
-        # Check 6: Min distance must be very good (best frame has distance < 15)
-        if min_distance > 15:
-            rejection_reasons.append(f"Best frame distance {min_distance:.0f} bits (FAIL - need <15)")
+        # Check 6: VERY STRICT best frame match (best frame < 12 bits = ~19% different)
+        if min_distance > 12:
+            rejection_reasons.append(f"Best frame distance {min_distance:.0f} bits (FAIL - need <12)")
         
         # REJECT if ANY check fails (very strict AND logic)
         if rejection_reasons:

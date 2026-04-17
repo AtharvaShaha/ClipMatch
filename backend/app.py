@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import FlaskConfig, DATA_DIR, REFERENCES_DIR, UPLOADS_DIR
 from api.routes import api
-from models.database import init_db
+from models.database import init_db, get_session, ReferenceVideo
+from services.indexer import VideoIndexer
 
 
 def create_app():
@@ -33,6 +34,34 @@ def create_app():
     
     # Initialize database
     init_db()
+    
+    # Auto-index reference videos if they exist and aren't indexed
+    try:
+        print("[Init] Checking for existing reference videos...")
+        indexer = VideoIndexer()
+        session = get_session()
+        
+        # Check if there are indexed videos
+        indexed_count = session.query(ReferenceVideo).filter(
+            ReferenceVideo.status == 'indexed'
+        ).count()
+        
+        session.close()
+        
+        # If no indexed videos but files exist, index them
+        if indexed_count == 0:
+            print("[Init] No indexed videos found. Scanning references directory...")
+            result = indexer.index_directory()
+            if result['success']:
+                print(f"[Init] ✅ Auto-indexed {len(result['indexed'])} video(s)")
+                for video_info in result['indexed']:
+                    print(f"     - {video_info['filename']}")
+            else:
+                print(f"[Init] No reference videos to index or all failed")
+        else:
+            print(f"[Init] ✅ Found {indexed_count} already indexed video(s)")
+    except Exception as e:
+        print(f"[Init] Warning: Could not auto-index videos: {str(e)}")
     
     # Register API blueprint
     app.register_blueprint(api)

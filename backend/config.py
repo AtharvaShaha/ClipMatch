@@ -22,7 +22,7 @@ for directory in [DATA_DIR, REFERENCES_DIR, UPLOADS_DIR, FEATURES_DIR]:
 # Video Processing Configuration
 class VideoConfig:
     # Frame sampling rate (frames per second to extract)
-    SAMPLE_RATE = 1  # 1 frame per second (balance between speed and accuracy)
+    SAMPLE_RATE = 32  # 32 frames per second (high accuracy)
     
     # Supported video formats
     SUPPORTED_FORMATS = ['.mp4', '.avi', '.mkv', '.mov', '.webm', '.flv']

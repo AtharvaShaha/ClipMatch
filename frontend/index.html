@@ -73,6 +73,24 @@
                         </div>
                         <button class="btn-remove" id="removeFile">✕</button>
                     </div>
+                    
+                    <!-- Quality Selector -->
+                    <div class="quality-selector">
+                        <label class="quality-label">Is this clip edited or heavily compressed?</label>
+                        <div class="quality-options">
+                            <button type="button" class="quality-btn active" data-quality="original" id="qualityOriginal">
+                                <span class="quality-icon">✓</span>
+                                <span class="quality-text">Original Quality</span>
+                                <span class="quality-desc">Fast matching for original clips</span>
+                            </button>
+                            <button type="button" class="quality-btn" data-quality="edited" id="qualityEdited">
+                                <span class="quality-icon">⚙</span>
+                                <span class="quality-text">Edited/Compressed</span>
+                                <span class="quality-desc">Deep analysis for edited clips</span>
+                            </button>
+                        </div>
+                    </div>
+                    
                     <button class="btn-analyze" id="analyzeBtn">
                         <span class="btn-text">INITIATE ANALYSIS</span>
                         <span class="btn-icon">→</span>

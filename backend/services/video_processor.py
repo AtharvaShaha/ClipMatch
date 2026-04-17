@@ -205,18 +205,25 @@ class VideoProcessor:
         finally:
             cap.release()
     
-    def extract_all_frames_to_list(self, video_path: str) -> list:
+    def extract_all_frames_to_list(self, video_path: str, max_frames: int = 40) -> list:
         """
-        Extract all frames and return as a list.
-        Useful for smaller clips where memory isn't a concern.
+        Extract frames and return as a list (limited to max_frames for speed).
         
         Args:
             video_path: Path to the video file
+            max_frames: Maximum number of frames to extract (default: 40 for fast processing)
             
         Returns:
             List of (frame_number, timestamp, frame_image) tuples
         """
-        return list(self.extract_frames(video_path))
+        frames = list(self.extract_frames(video_path))
+        
+        # Limit to max_frames by sampling evenly
+        if len(frames) > max_frames:
+            step = len(frames) // max_frames
+            frames = frames[::step][:max_frames]
+        
+        return frames
     
     def _preprocess_frame(self, frame: np.ndarray) -> np.ndarray:
         """
