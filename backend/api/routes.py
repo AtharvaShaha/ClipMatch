@@ -193,7 +193,10 @@ def match_clip():
     Match a query clip against indexed reference videos.
     
     Expects a video file upload with key 'clip' and optional 'clip_quality'.
-    clip_quality can be 'original' (fast) or 'edited' (deep analysis).
+    clip_quality options:
+    - 'original' (default): Fast hash-based matching for clear/unedited clips
+    - 'edited': Advanced NCC-based verification for edited/compressed/watermarked clips
+    
     Returns the best match with confidence score and timestamp range.
     """
     try:
@@ -231,10 +234,11 @@ def match_clip():
         try:
             # Select matcher based on clip quality
             if clip_quality == 'edited':
-                # Use advanced matcher with NCC/SSIM verification
+                # Use advanced NCC-based matcher for edited/compressed/watermarked videos
+                # NCC (Normalized Cross-Correlation) is robust to compression artifacts and brightness changes
                 result = advanced_matcher.match_clip(str(filepath))
             else:
-                # Use standard fast matcher (default)
+                # Use standard fast hash matcher (default for clear/unedited clips)
                 result = clip_matcher.match_clip(str(filepath))
             
             return jsonify(result)

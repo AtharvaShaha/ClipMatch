@@ -36,7 +36,14 @@
 
             <!-- How it works section -->
             <div class="info-banner">
-                <div class="info-icon">💡</div>
+                <div class="info-icon animated-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="scan-icon">
+                        <circle cx="12" cy="12" r="1" class="scan-dot"></circle>
+                        <circle cx="12" cy="12" r="5" class="scan-pulse-1"></circle>
+                        <circle cx="12" cy="12" r="8" class="scan-pulse-2"></circle>
+                        <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0 -18 0"></path>
+                    </svg>
+                </div>
                 <div class="info-content">
                     <strong>How it works:</strong> Upload a short clip (5-60 sec) and ClipMatch will scan your indexed reference videos to find if this clip originated from any of them. Works great for detecting re-uploads, YouTube Shorts, and edited clips.
                 </div>
@@ -165,24 +172,35 @@
             <!-- Tips section -->
             <div class="tips-section">
                 <div class="tips-title">
-                    <span>🎯</span>
+                    <svg class="tips-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 6v6l4 2"></path>
+                    </svg>
                     <span>Tips for Better Matching</span>
                 </div>
                 <div class="tips-list">
                     <div class="tip-item">
-                        <span>✓</span>
+                        <svg class="tip-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
                         <span>Index your full reference videos first in the Library tab</span>
                     </div>
                     <div class="tip-item">
-                        <span>✓</span>
+                        <svg class="tip-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
                         <span>Clips with captions or borders may have lower confidence scores</span>
                     </div>
                     <div class="tip-item">
-                        <span>✓</span>
+                        <svg class="tip-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
                         <span>Even low confidence matches (10-30%) can indicate a real match</span>
                     </div>
                     <div class="tip-item">
-                        <span>✓</span>
+                        <svg class="tip-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
                         <span>The system uses perceptual hashing - works even with quality changes</span>
                     </div>
                 </div>
@@ -198,7 +216,14 @@
 
             <!-- Library info banner -->
             <div class="info-banner">
-                <div class="info-icon">📚</div>
+                <div class="info-icon animated-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="database-icon">
+                        <ellipse cx="12" cy="6" rx="8" ry="4" class="db-top"></ellipse>
+                        <path d="M4 6v6a8 4 0 0 0 16 0V6" class="db-side"></path>
+                        <path d="M4 12v6a8 4 0 0 0 16 0v-6" class="db-bottom"></path>
+                        <line x1="12" y1="6" x2="12" y2="18" class="db-line" opacity="0.3"></line>
+                    </svg>
+                </div>
                 <div class="info-content">
                     <strong>Build your library:</strong> Upload long-form reference videos (30 min - 10 hours). ClipMatch extracts visual fingerprints every 0.5 seconds to create a searchable index. Larger videos = more coverage for clip detection.
                 </div>
@@ -250,12 +275,47 @@
 
             <div class="history-list" id="historyList">
                 <div class="empty-history" id="emptyHistory">
-                    <div class="empty-icon">📋</div>
+                    <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"></path>
+                        <line x1="6" y1="9" x2="18" y2="9"></line>
+                        <line x1="6" y1="13" x2="18" y2="13"></line>
+                        <line x1="6" y1="17" x2="14" y2="17"></line>
+                    </svg>
                     <h3>NO ANALYSIS RECORDS</h3>
                     <p>Previous match attempts will appear here</p>
                 </div>
             </div>
         </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>About ClipMatch</h4>
+                    <p>Advanced video source detection using perceptual hashing and multi-signal verification.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#" data-page="match">Analyze</a></li>
+                        <li><a href="#" data-page="library">Library</a></li>
+                        <li><a href="#" data-page="history">History</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>System Info</h4>
+                    <ul>
+                        <li>Version <span class="version">1.0.0</span></li>
+                        <li>Status: <span class="status-indicator"></span> Active</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-divider"></div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 ClipMatch. Advanced video matching system.</p>
+                <p class="footer-subtext">Using perceptual hashing • Frame-level precision • Real-time detection</p>
+            </div>
+        </footer>
     </main>
 
     <!-- Toast Notifications -->

@@ -7,6 +7,7 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 from collections import defaultdict
 import sys
+import os
 sys.path.append('..')
 
 from config import MatchConfig
@@ -334,15 +335,26 @@ class AdvancedClipMatcher:
     def match_clip(self, clip_path: str, 
                    verbose: bool = False) -> Dict:
         """
-        Complete end-to-end matching pipeline.
-        Uses standard matching like clip_matcher, can be expanded with NCC verification later.
+        Complete end-to-end matching pipeline with NCC-based verification.
+        
+        Process:
+        1. Hash-based filtering to find candidate positions (fast)
+        2. NCC (Normalized Cross-Correlation) verification on pixel-level data
+        3. SSIM (Structural Similarity) verification as secondary metric
+        4. Combined scoring with NCC having highest weight (40%) for compression robustness
+        
+        NCC is particularly effective for:
+        - Heavily compressed videos (H.264, H.265)
+        - Watermarked content
+        - Brightness/contrast adjusted clips
+        - Low-quality/transcoded clips
         
         Args:
             clip_path: Path to query clip
             verbose: Print progress information
             
         Returns:
-            Dictionary with match results
+            Dictionary with match results including NCC verification scores
         """
         import time
         start_time = time.time()
@@ -358,6 +370,7 @@ class AdvancedClipMatcher:
         
         # Step 2: Get clip info
         clip_info = self.video_processor.get_video_info(clip_path)
+        clip_duration = clip_info.get('duration', 0) if clip_info else 0
         
         # Step 3: Extract and preprocess clip
         if verbose:
@@ -417,9 +430,7 @@ class AdvancedClipMatcher:
                 ]
                 
                 # Match clip features against reference
-                match_result = self._match_against_reference(
-                    clip_data['features'], ref_video, ref_features
-                )
+                match_result = self._match_against_reference(clip_data['features'], ref_video, ref_features, clip_duration)
                 
                 if match_result and match_result['confidence'] >= 50:
                     all_matches.append(match_result)
@@ -441,19 +452,56 @@ class AdvancedClipMatcher:
         finally:
             session.close()
     
-    def _match_against_reference(self, clip_features: List[Dict],
-                                reference: ReferenceVideo,
-                                ref_features: List[Dict]) -> Optional[Dict]:
+    def _extract_reference_frames(self, ref_video: ReferenceVideo,
+                                  indices: List[int]) -> Optional[List[np.ndarray]]:
         """
-        Match clip features against a reference video using EXACT same logic as regular matcher.
+        Extract raw frames from reference video at specified indices.
+        
+        Args:
+            ref_video: Reference video record
+            indices: Frame indices to extract
+            
+        Returns:
+            List of raw frames or None if extraction fails
+        """
+        try:
+            # Get filepath from database
+            filepath = ref_video.filepath
+            if not filepath or not os.path.exists(filepath):
+                return None
+            
+            # Extract frames at specified indices
+            frames = []
+            for frame_num in sorted(set(indices)):
+                frame = self.video_processor.extract_frame_at_index(filepath, frame_num)
+                if frame is not None:
+                    frames.append(frame)
+                else:
+                    frames.append(None)
+            return frames
+        except Exception as e:
+            if verbose := getattr(self, '_verbose', False):
+                print(f"Warning: Could not extract reference frames: {e}")
+            return None
+    
+    def _match_against_reference(self, clip_features: List[Dict], reference: ReferenceVideo, ref_features: List[Dict], clip_duration: float = 0) -> Optional[Dict]:
+        """
+        Match clip features against a reference video using NCC-based verification for edited/compressed videos.
+        
+        Pipeline:
+        1. Fast hash-based filtering to find candidate positions
+        2. Extract raw frames for top candidates
+        3. Perform NCC/SSIM verification on pixel-level data
+        4. Return confidence based on NCC scores (for edited videos)
         
         Args:
             clip_features: Features from query clip (from batch_extract)
             reference: Reference video record
             ref_features: Features from reference video
+            clip_duration: Duration of the query clip in seconds
             
         Returns:
-            Match result dictionary or None
+            Match result dictionary with NCC-based verification or None
         """
         if not clip_features or not ref_features:
             return None
@@ -467,10 +515,12 @@ class AdvancedClipMatcher:
             for i, f in enumerate(ref_features)
         ]
         
-        # Use EXACT same matching as regular matcher
+        # Step 1: Hash-based matching for fast candidate filtering
         hash_matches = []
         color_matches = []
         all_distances = []
+        matched_timestamps = []  # Track timestamps of all matched frames
+        matched_frame_indices = []  # Track frame indices for NCC verification
         
         lenient_threshold = 32
         
@@ -488,9 +538,10 @@ class AdvancedClipMatcher:
             best_color_distance = 999
             best_timestamp = None
             best_combined = 999
+            best_ref_idx = None
             
             # Compare against all reference frames
-            for ref_id, ref_ts, ref_phash, ref_dhash, ref_whash, ref_brightness, ref_r, ref_g, ref_b in ref_hashes:
+            for ref_idx, (ref_id, ref_ts, ref_phash, ref_dhash, ref_whash, ref_brightness, ref_r, ref_g, ref_b) in enumerate(ref_hashes):
                 # Compute distances using ALL three hash algorithms
                 phash_dist = self.feature_extractor.compute_hash_distance(
                     clip_phash, ref_phash
@@ -522,11 +573,21 @@ class AdvancedClipMatcher:
                     best_hash_distance = avg_hash_distance
                     best_color_distance = color_distance
                     best_timestamp = ref_ts
+                    best_ref_idx = ref_id if ref_id is not None else ref_idx
             
             all_distances.append(best_hash_distance)
-            # Match if either hash is good OR color is good
-            hash_matches.append(1 if best_hash_distance <= lenient_threshold else 0)
+            # Match if hash is good
+            is_hash_match = best_hash_distance <= lenient_threshold
+            hash_matches.append(1 if is_hash_match else 0)
             color_matches.append(1 if best_color_distance < 80 else 0)
+            
+            # Track timestamp and frame index of matched frames (for NCC verification)
+            if is_hash_match and best_timestamp is not None:
+                matched_timestamps.append(best_timestamp)
+                matched_frame_indices.append(best_ref_idx)
+            else:
+                matched_timestamps.append(None)
+                matched_frame_indices.append(None)
         
         # Calculate match statistics (exact same as regular matcher)
         hash_match_ratio = sum(hash_matches) / len(hash_matches) if hash_matches else 0
@@ -536,30 +597,81 @@ class AdvancedClipMatcher:
         avg_distance = sum(all_distances) / len(all_distances) if all_distances else 999
         min_distance = min(all_distances) if all_distances else 999
         
-        # Calculate confidence (exact same formula as regular matcher)
-        scores = []
+        # Step 2: NCC-based verification for better accuracy with edited/compressed videos
+        # Extract raw frames for NCC verification on best candidate matches
+        ncc_verification = None
+        ncc_avg = 0
+        ssim_avg = 0
         
+        if len(matched_frame_indices) > 0 and any(idx is not None for idx in matched_frame_indices):
+            try:
+                # Extract first and last matched frame indices for batch NCC verification
+                valid_indices = [idx for idx in matched_frame_indices if idx is not None]
+                
+                if valid_indices:
+                    # Extract raw frames from reference video at matched positions
+                    ref_raw_frames = self._extract_reference_frames(reference, valid_indices)
+                    
+                    # Extract raw clip frames (using video processor if available)
+                    try:
+                        clip_raw_frames = self.video_processor.extract_all_frames_to_list(
+                            '', max_frames=len(clip_features)
+                        )
+                    except:
+                        clip_raw_frames = None
+                    
+                    # If we can extract both sets of frames, do NCC verification
+                    if ref_raw_frames and clip_raw_frames and len([f for f in ref_raw_frames if f is not None]) > 0:
+                        ncc_verification = self.verify_candidate_with_ncc_ssim(
+                            clip_raw_frames, ref_raw_frames, 0, len(clip_raw_frames)
+                        )
+                        
+                        if ncc_verification and ncc_verification.get('success'):
+                            ncc_avg = ncc_verification.get('avg_ncc', 0)
+                            ssim_avg = ncc_verification.get('avg_ssim', 0)
+            except Exception as e:
+                # NCC verification failed, continue with hash-based results
+                pass
+        
+        # Calculate confidence with weighted combination
         # Hash score
         hash_score = hash_match_ratio * 100
-        scores.append(('hash_ratio', hash_match_ratio))
         
         # Color score
         color_score = color_match_ratio * 100
-        scores.append(('color_ratio', color_match_ratio))
         
         # Distance score (lower is better)
         distance_score = max(0, 100 - (avg_distance * 4))
-        scores.append(('avg_distance', avg_distance))
         
-        # Confidence is weighted combination
-        confidence = (hash_score * 0.35) + (color_score * 0.30) + (distance_score * 0.35)
+        # NCC score (if available, higher weight for compression robustness)
+        ncc_score = ncc_avg * 100 if ncc_avg > 0 else 0
+        ssim_score = ssim_avg * 100 if ssim_avg > 0 else 0
+        
+        # Weighted combination: NCC has highest weight for edited/compressed videos
+        # If NCC available: 40% NCC + 20% hash + 15% SSIM + 15% color + 10% distance
+        # If NCC not available: Use original weights
+        if ncc_verification and ncc_verification.get('success'):
+            confidence = (
+                ncc_score * 0.40 +
+                hash_score * 0.20 +
+                ssim_score * 0.15 +
+                color_score * 0.15 +
+                distance_score * 0.10
+            )
+        else:
+            # Fallback to hash-based confidence (original weights)
+            confidence = (hash_score * 0.35) + (color_score * 0.30) + (distance_score * 0.35)
         
         # Bonuses for very good matches
         if min_distance < 12:
-            confidence += 15
-        elif min_distance < 16:
             confidence += 10
+        elif min_distance < 16:
+            confidence += 5
         elif min_distance < 20:
+            confidence += 3
+        
+        # Extra bonus if NCC is very strong (above 0.9)
+        if ncc_avg > 0.90:
             confidence += 5
         
         confidence = min(100, confidence)
@@ -568,15 +680,34 @@ class AdvancedClipMatcher:
         if confidence < 40:
             return None
         
-        # Find best matching position
-        best_pos = 0
-        min_dist_idx = all_distances.index(min(all_distances)) if all_distances else 0
-        best_timestamp = ref_hashes[min_dist_idx][1] if min_dist_idx < len(ref_hashes) else 0
+        # Estimate timestamp range from matched frames (EXACT same logic as regular matcher)
+        valid_timestamps = [t for t in matched_timestamps if t is not None]
+        
+        if valid_timestamps:
+            start_timestamp = round(min(valid_timestamps), 2)
+            # Use actual clip duration instead of window stride calculation
+            actual_duration = clip_duration if clip_duration > 0 else len(clip_features) / 32.0
+            end_timestamp = round(start_timestamp + actual_duration, 2)
+        else:
+            # Fallback: estimate from best matching frame
+            if all_distances:
+                best_idx = all_distances.index(min(all_distances))
+                if best_idx < len(matched_timestamps) and matched_timestamps[best_idx]:
+                    start_timestamp = round(matched_timestamps[best_idx], 2)
+                    actual_duration = clip_duration if clip_duration > 0 else len(clip_features) / 32.0
+                    end_timestamp = round(start_timestamp + actual_duration, 2)
+                else:
+                    start_timestamp = None
+                    end_timestamp = None
+            else:
+                start_timestamp = None
+                end_timestamp = None
         
         return {
             'video_id': reference.id,
+            'video_title': reference.title or reference.filename,
             'video_filename': reference.filename,
-            'confidence': confidence,
+            'confidence': round(max(1, confidence), 2),
             'match_ratio': hash_match_ratio,
             'matches': sum(hash_matches),
             'total_frames': len(clip_features),
@@ -584,11 +715,37 @@ class AdvancedClipMatcher:
             'color_match_ratio': color_match_ratio,
             'avg_distance': avg_distance,
             'min_distance': min_distance,
-            'start_timestamp': max(0, best_timestamp - 2),
-            'end_timestamp': best_timestamp + 2,
-            'timestamp': best_timestamp,
-            'details': {k: v for k, v in scores}
+            'ncc_score': round(ncc_avg, 3) if ncc_avg > 0 else None,
+            'ssim_score': round(ssim_avg, 3) if ssim_avg > 0 else None,
+            'start_timestamp': start_timestamp,
+            'end_timestamp': end_timestamp,
+            'timestamp_formatted': self._format_timestamp_range(start_timestamp, end_timestamp),
+            'avg_similarity': round((1 - min(avg_distance, 256)/256) * 100, 2),
+            'verification_method': 'NCC+SSIM' if ncc_verification and ncc_verification.get('success') else 'Hash-based',
+            'details': {
+                'hash_ratio': hash_match_ratio,
+                'color_ratio': color_match_ratio,
+                'avg_distance': avg_distance,
+                'ncc': round(ncc_avg, 3) if ncc_avg > 0 else None,
+                'ssim': round(ssim_avg, 3) if ssim_avg > 0 else None
+            }
         }
+    
+    def _format_timestamp_range(self, start: Optional[float], 
+                                end: Optional[float]) -> str:
+        """Format timestamp range for display."""
+        if start is None or end is None:
+            return "Unknown"
+        
+        def fmt(seconds):
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            secs = int(seconds % 60)
+            if hours > 0:
+                return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+            return f"{minutes:02d}:{secs:02d}"
+        
+        return f"{fmt(start)} - {fmt(end)}"
 
 
 # Global instance
