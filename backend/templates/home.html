@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}ClipMatch - Find Your Video Source{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+{% endblock %}
+
+{% block body_content %}
+    <!-- Animated Background -->
+    <div class="animated-bg">
+        <div class="gradient-1"></div>
+        <div class="gradient-2"></div>
+        <div class="gradient-3"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav-home">
+        <div class="nav-container">
+            <a href="{{ url_for('home') }}" class="nav-brand-home">
+                <span class="brand-icon">🎬</span>
+                <span class="brand-text">CLIPMATCH</span>
+            </a>
+            <div class="nav-links-home">
+                <a href="#features" class="nav-link-home scroll-link">Features</a>
+                <a href="#how-it-works" class="nav-link-home scroll-link">How It Works</a>
+                <a href="#use-cases" class="nav-link-home scroll-link">Applications</a>
+                <a href="{{ url_for('app_interface') }}" class="nav-link-home btn-app">Launch App →</a>
+            </div>
+            <button class="mobile-menu-btn" id="mobileMenuBtn">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+        <div class="mobile-menu" id="mobileMenu">
+            <a href="#features" class="nav-link-home scroll-link">Features</a>
+            <a href="#how-it-works" class="nav-link-home scroll-link">How It Works</a>
+            <a href="#use-cases" class="nav-link-home scroll-link">Applications</a>
+            <a href="{{ url_for('app_interface') }}" class="nav-link-home">Launch App →</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">✨ Advanced Video Matching Technology</div>
+            <h1 class="hero-title">Find Where Your Videos <span class="text-gradient">Come From</span></h1>
+            <p class="hero-subtitle">
+                Upload a clip. Instantly identify its source within your reference library using AI-powered perceptual hashing and multi-signal verification.
+            </p>
+            <div class="hero-cta">
+                <a href="{{ url_for('app_interface') }}" class="btn btn-primary">Start Analyzing</a>
+                <a href="#how-it-works" class="btn btn-secondary scroll-link">Learn More</a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <span class="stat-number">40%+</span>
+                    <span class="stat-label">Min Confidence</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">6-Point</span>
+                    <span class="stat-label">Validation</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">Frame-Level</span>
+                    <span class="stat-label">Precision</span>
+                </div>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="floating-card card-1">
+                <div class="card-icon">📹</div>
+                <div class="card-text">Upload Clip</div>
+            </div>
+            <div class="floating-card card-2">
+                <div class="card-icon">🔍</div>
+                <div class="card-text">Analyze</div>
+            </div>
+            <div class="floating-card card-3">
+                <div class="card-icon">✅</div>
+                <div class="card-text">Match Found</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="section-header">
+            <h2 class="section-title">Powerful Features</h2>
+            <p class="section-subtitle">Everything you need for precise video source detection</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <h3>Perceptual Hashing</h3>
+                <p>Advanced multi-algorithm hashing (pHash, dHash, wHash) detects visual patterns even with compression or color changes.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔐</div>
+                <h3>Strict Validation</h3>
+                <p>6-point validation system ensures accurate matches and eliminates false positives through comprehensive signal analysis.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Lightning Fast</h3>
+                <p>Indexed queries return results in milliseconds. Process multiple videos and build comprehensive reference libraries instantly.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Exact Timestamps</h3>
+                <p>Get precise start and end timestamps for matched content with frame-level accuracy and confidence scoring.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📚</div>
+                <h3>Reference Library</h3>
+                <p>Index unlimited reference videos. Build a searchable database of your content for continuous monitoring and detection.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📋</div>
+                <h3>Analysis History</h3>
+                <p>Track all your searches and matches. Keep detailed records for copyright management and audit trails.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="section-header">
+            <h2 class="section-title">The ClipMatch Process</h2>
+            <p class="section-subtitle">Our sophisticated 5-step matching pipeline</p>
+        </div>
+        
+        <div class="process-container">
+            <div class="process-step">
+                <div class="step-number">1</div>
+                <h3>Reference Indexing</h3>
+                <p>Upload your reference videos. The system preprocesses frames and extracts multiple perceptual hashes for rapid retrieval.</p>
+                <div class="step-detail">Supports: MP4, AVI, MKV, MOV, WEBM</div>
+            </div>
+            
+            <div class="process-arrow">→</div>
+            
+            <div class="process-step">
+                <div class="step-number">2</div>
+                <h3>Feature Extraction</h3>
+                <p>Submit your search clip. We extract visual fingerprints using pHash, dHash, and wHash algorithms concurrently.</p>
+                <div class="step-detail">Frame analysis at 1-frame/sec intervals</div>
+            </div>
+            
+            <div class="process-arrow">→</div>
+            
+            <div class="process-step">
+                <div class="step-number">3</div>
+                <h3>Database Matching</h3>
+                <p>Query the indexed reference library. Compare hash signatures across dimensions for potential matches.</p>
+                <div class="step-detail">Millisecond-level query response</div>
+            </div>
+            
+            <div class="process-arrow">→</div>
+            
+            <div class="process-step">
+                <div class="step-number">4</div>
+                <h3>Strict Validation</h3>
+                <p>Apply 6-point validation: hash ratios, Hamming distance, color patterns, frame alignment, SSIM, and NCC scoring.</p>
+                <div class="step-detail">Minimum 40% confidence threshold</div>
+            </div>
+            
+            <div class="process-arrow">→</div>
+            
+            <div class="process-step">
+                <div class="step-number">5</div>
+                <h3>Results & Timestamps</h3>
+                <p>Get exact timestamps showing where your clip appears within the source video with confidence metrics.</p>
+                <div class="step-detail">Frame-level precision with duration</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Technical Specs Section -->
+    <section class="tech-specs">
+        <div class="section-header">
+            <h2 class="section-title">Technical Capabilities</h2>
+            <p class="section-subtitle">Built on proven computer vision and machine learning techniques</p>
+        </div>
+        
+        <div class="specs-grid">
+            <div class="spec-box">
+                <h3>Multi-Algorithm Hashing</h3>
+                <ul class="spec-list">
+                    <li>pHash (perceptual hash)</li>
+                    <li>dHash (difference hash)</li>
+                    <li>wHash (wavelet hash)</li>
+                    <li>Hamming distance comparison</li>
+                </ul>
+            </div>
+            <div class="spec-box">
+                <h3>Validation Signals</h3>
+                <ul class="spec-list">
+                    <li>Hash match ratio ≥40%</li>
+                    <li>Avg distance ≤20 bits</li>
+                    <li>Color pattern match ≥50%</li>
+                    <li>SSIM / NCC verification</li>
+                </ul>
+            </div>
+            <div class="spec-box">
+                <h3>Supported Formats</h3>
+                <ul class="spec-list">
+                    <li>MP4, AVI, MKV</li>
+                    <li>MOV, WEBM, FLV</li>
+                    <li>H.264/H.265 codecs</li>
+                    <li>Variable resolutions</li>
+                </ul>
+            </div>
+            <div class="spec-box">
+                <h3>Performance</h3>
+                <ul class="spec-list">
+                    <li>Sub-second indexing</li>
+                    <li>Millisecond queries</li>
+                    <li>Multi-hour references</li>
+                    <li>Parallel processing</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section class="use-cases" id="use-cases">
+        <div class="section-header">
+            <h2 class="section-title">Real-World Applications</h2>
+            <p class="section-subtitle">Trusted across multiple industries</p>
+        </div>
+        
+        <div class="use-cases-grid">
+            <div class="use-case-card">
+                <div class="use-case-icon">⚖️</div>
+                <h3>Copyright Protection</h3>
+                <p>Automatically detect unauthorized use of your original content across platforms. Identify re-uploads and derivative works instantly.</p>
+            </div>
+            
+            <div class="use-case-card">
+                <div class="use-case-icon">🎬</div>
+                <h3>Content Management</h3>
+                <p>Track video versions and edits. Maintain audit trails for production workflows and identify source clips in compiled projects.</p>
+            </div>
+            
+            <div class="use-case-card">
+                <div class="use-case-icon">🔬</div>
+                <h3>Research & Forensics</h3>
+                <p>Locate specific moments in archival footage. Trace viral content sources and analyze how media spreads across networks.</p>
+            </div>
+            
+            <div class="use-case-card">
+                <div class="use-case-icon">📺</div>
+                <h3>Broadcast Quality Assurance</h3>
+                <p>Verify output matches reference materials. Ensure edited videos contain expected source sequences with precise timing.</p>
+            </div>
+            
+            <div class="use-case-card">
+                <div class="use-case-icon">🎓</div>
+                <h3>Educational Archives</h3>
+                <p>Search through lecture recordings and educational material. Find specific topics and timestamps within large video collections.</p>
+            </div>
+            
+            <div class="use-case-card">
+                <div class="use-case-icon">🏢</div>
+                <h3>Enterprise Workflows</h3>
+                <p>Integrate into content management systems. Automate detection across incoming streams and maintain compliance records.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="cta-content">
+            <h2>Ready to Discover Your Video Sources?</h2>
+            <p>Start with your first analysis. Upload any clip and instantly find its exact origin.</p>
+            <a href="{{ url_for('app_interface') }}" class="btn btn-primary btn-large">Launch the App</a>
+            <p class="cta-secondary">No sign-up required • Local processing • Instant results</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>ClipMatch</h4>
+                <p>Precision video source detection powered by advanced perceptual hashing algorithms.</p>
+            </div>
+            <div class="footer-section">
+                <h4>Features</h4>
+                <ul>
+                    <li><a href="{{ url_for('app_interface') }}">Analyze Videos</a></li>
+                    <li><a href="{{ url_for('app_interface') }}">Manage Library</a></li>
+                    <li><a href="{{ url_for('app_interface') }}">View History</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="https://github.com/AtharvaShaha/ClipMatch" target="_blank">GitHub Repository</a></li>
+                    <li><a href="#how-it-works" class="scroll-link">Documentation</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 ClipMatch. Advanced Video Analysis Technology.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/home.js') }}"></script>
+{% endblock %}

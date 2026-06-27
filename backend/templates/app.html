@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}ClipMatch - Video Analysis App{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+{% endblock %}
+
+{% block body_content %}
+    <!-- Scanline overlay effect -->
+    <div class="scanlines"></div>
+    
+    <!-- Navigation -->
+    <nav class="nav">
+        <a href="{{ url_for('home') }}" class="nav-brand" style="text-decoration: none;">
+            <span class="brand-icon">◉</span>
+            <span class="brand-text">CLIPMATCH</span>
+            <span class="brand-version">v1.0</span>
+        </a>
+        <div class="nav-links">
+            <a href="{{ url_for('home') }}" class="nav-link" data-page="home">HOME</a>
+            <a href="#" class="nav-link active" data-page="match">ANALYZE</a>
+            <a href="#" class="nav-link" data-page="library">LIBRARY</a>
+            <a href="#" class="nav-link" data-page="history">HISTORY</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Match Page -->
+        <section id="page-match" class="page active">
+            <div class="page-header">
+                <h1 class="glitch-text" data-text="VIDEO ANALYSIS">VIDEO ANALYSIS</h1>
+                <p class="page-subtitle">Upload a clip to identify its source within the reference library</p>
+            </div>
+
+            <!-- How it works section -->
+            <div class="info-banner">
+                <div class="info-icon animated-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="scan-icon">
+                        <circle cx="12" cy="12" r="1" class="scan-dot"></circle>
+                        <circle cx="12" cy="12" r="5" class="scan-pulse-1"></circle>
+                        <circle cx="12" cy="12" r="8" class="scan-pulse-2"></circle>
+                        <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0 -18 0"></path>
+                    </svg>
+                </div>
+                <div class="info-content">
+                    <strong>How it works:</strong> Upload a short clip (5-60 sec) and ClipMatch will scan your indexed reference videos to find if this clip originated from any of them. Works great for detecting re-uploads, YouTube Shorts, and edited clips.
+                </div>
+            </div>
+
+            <div class="analysis-container">
+                <!-- Upload Zone -->
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-content">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M12 16V4m0 0L7 9m5-5l5 5"/>
+                                <path d="M3 20h18"/>
+                            </svg>
+                        </div>
+                        <h3 class="upload-title">DROP CLIP FILE</h3>
+                        <p class="upload-hint">or click to browse</p>
+                        <p class="upload-formats">MP4, AVI, MKV, MOV, WEBM • 5-60 seconds</p>
+                    </div>
+                    <input type="file" id="clipInput" accept="video/*" hidden>
+                </div>
+
+                <!-- Selected File Preview -->
+                <div class="file-preview hidden" id="filePreview">
+                    <div class="file-info">
+                        <div class="file-icon">▶</div>
+                        <div class="file-details">
+                            <span class="file-name" id="fileName"></span>
+                            <span class="file-meta" id="fileMeta"></span>
+                        </div>
+                        <button class="btn-remove" id="removeFile">✕</button>
+                    </div>
+                    
+                    <!-- Quality Selector -->
+                    <div class="quality-selector">
+                        <label class="quality-label">Is this clip edited or heavily compressed?</label>
+                        <div class="quality-options">
+                            <button type="button" class="quality-btn active" data-quality="original" id="qualityOriginal">
+                                <span class="quality-icon">✓</span>
+                                <span class="quality-text">Original Quality</span>
+                                <span class="quality-desc">Fast matching for original clips</span>
+                            </button>
+                            <button type="button" class="quality-btn" data-quality="edited" id="qualityEdited">
+                                <span class="quality-icon">⚙</span>
+                                <span class="quality-text">Edited/Compressed</span>
+                                <span class="quality-desc">Deep analysis for edited clips</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-analyze" id="analyzeBtn">
+                        <span class="btn-text">INITIATE ANALYSIS</span>
+                        <span class="btn-icon">→</span>
+                    </button>
+                </div>
+
+                <!-- Processing State -->
+                <div class="processing hidden" id="processing">
+                    <div class="processing-visual">
+                        <div class="scanner-line"></div>
+                        <div class="processing-rings">
+                            <div class="ring ring-1"></div>
+                            <div class="ring ring-2"></div>
+                            <div class="ring ring-3"></div>
+                        </div>
+                    </div>
+                    <div class="processing-text">
+                        <h3>ANALYZING CLIP</h3>
+                        <p id="processingStatus">Extracting visual signatures...</p>
+                        <p class="elapsed-timer" id="elapsedTimer">0.0s elapsed</p>
+                    </div>
+                    <div class="processing-progress">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <p class="long-wait-msg hidden" id="longWaitMsg"></p>
+                    <button class="btn-cancel" id="cancelBtn">CANCEL</button>
+                </div>
+
+                <!-- Results -->
+                <div class="results hidden" id="results">
+                    <div class="results-header">
+                        <h2>ANALYSIS COMPLETE</h2>
+                        <span class="processing-time" id="processingTime"></span>
+                    </div>
+
+                    <!-- Match Found -->
+                    <div class="match-result" id="matchResult">
+                        <div class="confidence-meter">
+                            <div class="meter-label">CONFIDENCE SCORE</div>
+                            <div class="meter-display">
+                                <svg class="meter-svg" viewBox="0 0 200 100">
+                                    <path class="meter-bg" d="M 20 90 A 80 80 0 0 1 180 90"/>
+                                    <path class="meter-fill" id="meterFill" d="M 20 90 A 80 80 0 0 1 180 90"/>
+                                </svg>
+                                <div class="meter-value" id="confidenceValue">0</div>
+                            </div>
+                            <div class="meter-status" id="confidenceLabel">ANALYZING</div>
+                        </div>
+
+                        <div class="match-details">
+                            <div class="detail-card primary">
+                                <span class="detail-label">FOUND IN LIBRARY</span>
+                                <span class="detail-value video-name" id="matchedVideo">—</span>
+                            </div>
+                            <div class="detail-card">
+                                <span class="detail-label">TIMESTAMP IN SOURCE</span>
+                                <span class="detail-value timestamp" id="timestampRange">—</span>
+                            </div>
+                            <div class="detail-card">
+                                <span class="detail-label">MATCH QUALITY</span>
+                                <span class="detail-value similarity" id="similarityScore">—</span>
+                            </div>
+                        </div>
+
+                        <!-- Technical Evidence Panel -->
+                        <div class="evidence-panel" id="evidencePanel">
+                            <button class="evidence-toggle" id="evidenceToggle">
+                                <span class="evidence-toggle-icon">▸</span>
+                                <span>TECHNICAL EVIDENCE</span>
+                            </button>
+                            <div class="evidence-body hidden" id="evidenceBody">
+                                <div class="evidence-grid">
+                                    <div class="evidence-item">
+                                        <span class="evidence-label">Hash Match Ratio</span>
+                                        <span class="evidence-value" id="evHashRatio">—</span>
+                                    </div>
+                                    <div class="evidence-item">
+                                        <span class="evidence-label">Color Match Ratio</span>
+                                        <span class="evidence-value" id="evColorRatio">—</span>
+                                    </div>
+                                    <div class="evidence-item">
+                                        <span class="evidence-label">Avg Hash Distance</span>
+                                        <span class="evidence-value" id="evAvgDist">—</span>
+                                    </div>
+                                    <div class="evidence-item">
+                                        <span class="evidence-label">Min Hash Distance</span>
+                                        <span class="evidence-value" id="evMinDist">—</span>
+                                    </div>
+                                    <div class="evidence-item">
+                                        <span class="evidence-label">Frames Analyzed</span>
+                                        <span class="evidence-value" id="evFrames">—</span>
+                                    </div>
+                                    <div class="evidence-item">
+                                        <span class="evidence-label">Verification Method</span>
+                                        <span class="evidence-value" id="evMethod">—</span>
+                                    </div>
+                                </div>
+                                <div class="evidence-timing hidden" id="evidenceTiming">
+                                    <span class="evidence-label">Pipeline Timing</span>
+                                    <div class="timing-bars" id="timingBars"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- No Match -->
+                    <div class="no-match hidden" id="noMatch">
+                        <div class="no-match-icon">∅</div>
+                        <h3>NO MATCH DETECTED</h3>
+                        <p>The uploaded clip does not match any video in the reference library.</p>
+                    </div>
+
+                    <button class="btn-reset" id="resetBtn">
+                        <span>NEW ANALYSIS</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tips section -->
+            <div class="tips-section">
+                <div class="tips-title">
+                    <svg class="tips-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 6v6l4 2"></path>
+                    </svg>
+                    <span>Tips for Better Matching</span>
+                </div>
+                <div class="tips-list">
+                    <div class="tip-item">
+                        <svg class="tip-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>Index your full reference videos first in the Library tab</span>
+                    </div>
+                    <div class="tip-item">
+                        <svg class="tip-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>Clips with captions or borders may have lower confidence scores</span>
+                    </div>
+                    <div class="tip-item">
+                        <svg class="tip-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>Even low confidence matches (10-30%) can indicate a real match</span>
+                    </div>
+                    <div class="tip-item">
+                        <svg class="tip-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>The system uses perceptual hashing - works even with quality changes</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Limitations -->
+            <div class="limitations-section">
+                <div class="limitations-title">
+                    <svg class="limitations-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <span>Known Limitations</span>
+                </div>
+                <div class="limitations-list">
+                    <div class="limitation-item">
+                        <span class="limitation-tag">⚠</span>
+                        <span>Mirrored or flipped videos are <strong>not detected</strong> — hashes are orientation-dependent</span>
+                    </div>
+                    <div class="limitation-item">
+                        <span class="limitation-tag">⚠</span>
+                        <span>Heavy cropping may reduce match accuracy significantly</span>
+                    </div>
+                    <div class="limitation-item">
+                        <span class="limitation-tag">⚠</span>
+                        <span>Processing time scales with reference library size (~2s per indexed video)</span>
+                    </div>
+                    <div class="limitation-item">
+                        <span class="limitation-tag">⚠</span>
+                        <span>Speed-changed clips (sped up / slowed down) may break temporal matching</span>
+                    </div>
+                    <div class="limitation-item">
+                        <span class="limitation-tag">ℹ</span>
+                        <span>Only visual matching is used — no audio fingerprinting</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Library Page -->
+        <section id="page-library" class="page">
+            <div class="page-header">
+                <h1 class="glitch-text" data-text="REFERENCE LIBRARY">REFERENCE LIBRARY</h1>
+                <p class="page-subtitle">Indexed video collection for source matching</p>
+            </div>
+
+            <!-- Library info banner -->
+            <div class="info-banner">
+                <div class="info-icon animated-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="database-icon">
+                        <ellipse cx="12" cy="6" rx="8" ry="4" class="db-top"></ellipse>
+                        <path d="M4 6v6a8 4 0 0 0 16 0V6" class="db-side"></path>
+                        <path d="M4 12v6a8 4 0 0 0 16 0v-6" class="db-bottom"></path>
+                        <line x1="12" y1="6" x2="12" y2="18" class="db-line" opacity="0.3"></line>
+                    </svg>
+                </div>
+                <div class="info-content">
+                    <strong>Build your library:</strong> Upload long-form reference videos (30 min - 10 hours). ClipMatch extracts visual fingerprints every 0.5 seconds to create a searchable index. Larger videos = more coverage for clip detection.
+                </div>
+            </div>
+
+            <div class="library-stats" id="libraryStats">
+                <div class="stat-card">
+                    <span class="stat-value" id="statVideos">0</span>
+                    <span class="stat-label">INDEXED VIDEOS</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value" id="statFrames">0</span>
+                    <span class="stat-label">TOTAL FRAMES</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value" id="statDuration">0h 0m</span>
+                    <span class="stat-label">TOTAL DURATION</span>
+                </div>
+            </div>
+
+            <div class="library-actions">
+                <div class="upload-reference" id="uploadReference">
+                    <div class="upload-ref-content">
+                        <span class="upload-ref-icon">+</span>
+                        <span class="upload-ref-text">ADD REFERENCE VIDEO</span>
+                    </div>
+                    <input type="file" id="referenceInput" accept="video/*" hidden>
+                </div>
+                <button class="btn-index-all" id="indexAllBtn">
+                    INDEX DIRECTORY
+                </button>
+            </div>
+
+            <div class="library-list" id="libraryList">
+                <div class="empty-library" id="emptyLibrary">
+                    <div class="empty-icon">📁</div>
+                    <h3>NO REFERENCES INDEXED</h3>
+                    <p>Add reference videos to begin building your detection library</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- History Page -->
+        <section id="page-history" class="page">
+            <div class="page-header">
+                <h1 class="glitch-text" data-text="MATCH HISTORY">MATCH HISTORY</h1>
+                <p class="page-subtitle">Previous analysis results and match records</p>
+            </div>
+
+            <div class="history-list" id="historyList">
+                <div class="empty-history" id="emptyHistory">
+                    <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"></path>
+                        <line x1="6" y1="9" x2="18" y2="9"></line>
+                        <line x1="6" y1="13" x2="18" y2="13"></line>
+                        <line x1="6" y1="17" x2="14" y2="17"></line>
+                    </svg>
+                    <h3>NO ANALYSIS RECORDS</h3>
+                    <p>Previous match attempts will appear here</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>About ClipMatch</h4>
+                    <p>Advanced video source detection using perceptual hashing and multi-signal verification.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#" data-page="match">Analyze</a></li>
+                        <li><a href="#" data-page="library">Library</a></li>
+                        <li><a href="#" data-page="history">History</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>System Info</h4>
+                    <ul>
+                        <li>Version <span class="version">1.0.0</span></li>
+                        <li>Status: <span class="status-indicator"></span> Active</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-divider"></div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 ClipMatch. Advanced video matching system.</p>
+                <p class="footer-subtext">Using perceptual hashing • Frame-level precision • Real-time detection</p>
+            </div>
+        </footer>
+    </main>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Video Upload Modal -->
+    <div class="modal hidden" id="uploadModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>INDEXING REFERENCE</h3>
+                <button class="modal-close" id="modalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="index-progress">
+                    <div class="index-file" id="indexFileName">video.mp4</div>
+                    <div class="index-status" id="indexStatus">Preparing...</div>
+                    <div class="index-bar">
+                        <div class="index-bar-fill" id="indexBarFill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}
