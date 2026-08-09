@@ -95,6 +95,8 @@ data/*.json
 # Large data directories
 Database/
 Query video/
+new db/
+cache/
 
 # Gemini IDE
 .gemini/

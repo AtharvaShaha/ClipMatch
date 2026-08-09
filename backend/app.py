@@ -5,7 +5,7 @@ Restricted Source Video Matching System
 
 import os
 import sys
-import logging
+import logging          
 
 # Force UTF-8 output encoding — must be set before any print/log output.
 # This survives Flask's debug reloader (which re-spawns a child process).

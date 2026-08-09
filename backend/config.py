@@ -6,6 +6,13 @@ Centralized configuration for all system parameters
 import os
 from pathlib import Path
 
+# Load .env file if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / '.env')
+except ImportError:
+    pass  # python-dotenv not installed; rely on system env vars
+
 # Base Paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -13,10 +20,11 @@ DATA_DIR = BASE_DIR / "data"
 REFERENCES_DIR = DATA_DIR / "references"
 UPLOADS_DIR = DATA_DIR / "uploads"
 FEATURES_DIR = DATA_DIR / "features"
+CACHE_DIR = BASE_DIR / "cache"
 DATABASE_PATH = DATA_DIR / "clipmatch.db"
 
 # Ensure directories exist
-for directory in [DATA_DIR, REFERENCES_DIR, UPLOADS_DIR, FEATURES_DIR]:
+for directory in [DATA_DIR, REFERENCES_DIR, UPLOADS_DIR, FEATURES_DIR, CACHE_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # Video Processing Configuration
@@ -104,3 +112,13 @@ class FlaskConfig:
     # CORS settings
     CORS_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 
                     'http://localhost:5500', 'http://127.0.0.1:5500']
+
+
+# Cloudinary Configuration — loaded from environment variables (.env file)
+# NEVER hardcode credentials here. Use .env file or system environment variables.
+class CloudinaryConfig:
+    CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
+    API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
+    API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
+    # All reference videos are stored in this folder on Cloudinary
+    CLOUD_FOLDER = "clipmatch_references"

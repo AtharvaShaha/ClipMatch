@@ -87,8 +87,14 @@ const elements = {
     evMinDist: document.getElementById('evMinDist'),
     evFrames: document.getElementById('evFrames'),
     evMethod: document.getElementById('evMethod'),
+    evidenceNccGrid: document.getElementById('evidenceNccGrid'),
+    evNcc: document.getElementById('evNcc'),
+    evSsim: document.getElementById('evSsim'),
+    evidenceCandidates: document.getElementById('evidenceCandidates'),
+    evCandidates: document.getElementById('evCandidates'),
     evidenceTiming: document.getElementById('evidenceTiming'),
-    timingBars: document.getElementById('timingBars')
+    timingBars: document.getElementById('timingBars'),
+    pipelineStages: document.getElementById('pipelineStages')
 };
 
 // ============================================================
@@ -265,41 +271,78 @@ async function analyzeClip() {
     elements.processing.classList.remove('hidden');
     elements.longWaitMsg.classList.add('hidden');
     elements.elapsedTimer.textContent = '0.0s elapsed';
-    
-    // Live elapsed timer + time-based stage messages
+     // Live elapsed timer + time-based stage messages + pipeline stage visualization
     const startedAt = performance.now();
     let progress = 0;
+    const stageOrder = ['upload', 'extract', 'hash', 'match', 'verify', 'score'];
+    
+    // Reset pipeline stages
+    document.querySelectorAll('.pipeline-stage').forEach(s => {
+        s.classList.remove('active', 'completed');
+    });
+    document.querySelectorAll('.pipeline-connector').forEach(c => {
+        c.classList.remove('completed');
+    });
+    const firstStage = document.querySelector('.pipeline-stage[data-stage="upload"]');
+    if (firstStage) firstStage.classList.add('active');
+    
+    function activatePipelineStage(stageName) {
+        const stageIdx = stageOrder.indexOf(stageName);
+        if (stageIdx < 0) return;
+        document.querySelectorAll('.pipeline-stage').forEach((s, i) => {
+            const si = stageOrder.indexOf(s.dataset.stage);
+            if (si < stageIdx) {
+                s.classList.remove('active');
+                s.classList.add('completed');
+            } else if (si === stageIdx) {
+                s.classList.add('active');
+                s.classList.remove('completed');
+            } else {
+                s.classList.remove('active', 'completed');
+            }
+        });
+        // Mark connectors
+        document.querySelectorAll('.pipeline-connector').forEach((c, i) => {
+            if (i < stageIdx) {
+                c.classList.add('completed');
+            } else {
+                c.classList.remove('completed');
+            }
+        });
+    }
+    
     _elapsedInterval = setInterval(() => {
         const elapsed = (performance.now() - startedAt) / 1000;
         elements.elapsedTimer.textContent = elapsed.toFixed(1) + 's elapsed';
         
-        // Time-based stage messages (more realistic than fake progress)
+        // Time-based stage messages + pipeline stage visualization
         if (elapsed < 3) {
             elements.processingStatus.textContent = 'Uploading clip to server...';
-            progress = Math.min(15, progress + 2);
-        } else if (elapsed < 8) {
-            elements.processingStatus.textContent = 'Extracting frames & computing hashes...';
+            activatePipelineStage('upload');
+            progress = Math.min(10, progress + 2);
+        } else if (elapsed < 6) {
+            elements.processingStatus.textContent = 'Extracting frames from clip...';
+            activatePipelineStage('extract');
+            progress = Math.min(25, progress + 1.5);
+        } else if (elapsed < 10) {
+            elements.processingStatus.textContent = 'Computing perceptual hashes...';
+            activatePipelineStage('hash');
             progress = Math.min(40, progress + 1.5);
-        } else if (elapsed < 20) {
+        } else if (elapsed < 25) {
             if (state.clipQuality === 'edited') {
-                elements.processingStatus.textContent = 'Running NCC/SSIM deep verification...';
+                elements.processingStatus.textContent = 'Deep matching in progress...';
+                activatePipelineStage('verify');
             } else {
                 elements.processingStatus.textContent = 'Comparing against reference library...';
+                activatePipelineStage('match');
             }
-            progress = Math.min(75, progress + 0.8);
+            progress = Math.min(75, progress + 0.6);
         } else {
             elements.processingStatus.textContent = 'Scoring candidates & ranking results...';
-            progress = Math.min(90, progress + 0.3);
+            activatePipelineStage('score');
+            progress = Math.min(92, progress + 0.2);
         }
         elements.progressBar.style.width = progress + '%';
-        
-        // Long-wait messages
-        if (elapsed > 10 && elapsed < 11) {
-            elements.longWaitMsg.classList.remove('hidden');
-            elements.longWaitMsg.textContent = 'Taking longer than usual — large reference libraries increase processing time.';
-        } else if (elapsed > 30 && elapsed < 31) {
-            elements.longWaitMsg.textContent = 'Still processing — the system is comparing against all indexed frames...';
-        }
     }, 200);
     
     try {
@@ -382,24 +425,67 @@ function displayResults(data) {
         elements.similarityScore.textContent = (match.avg_similarity || 0).toFixed(1) + '%';
         
         // Populate evidence panel
-        elements.evHashRatio.textContent = match.match_ratio != null ? (match.match_ratio * 100).toFixed(1) + '%' : '—';
+        const matchRatio = match.match_ratio ?? match.hash_match_ratio;
+        elements.evHashRatio.textContent = matchRatio != null ? (matchRatio * 100).toFixed(1) + '%' : '—';
         elements.evColorRatio.textContent = match.color_match_ratio != null ? (match.color_match_ratio * 100).toFixed(1) + '%' : '—';
         elements.evAvgDist.textContent = match.avg_distance != null ? match.avg_distance + ' bits' : '—';
         elements.evMinDist.textContent = match.min_distance != null ? match.min_distance + ' bits' : '—';
         elements.evFrames.textContent = (data.query?.frames_analyzed || match.clip_frames_analyzed || '—');
-        elements.evMethod.textContent = match.ncc_verification ? 'Hash + NCC + SSIM' : 'Hash + Color';
+        // Show user-friendly method name (no technical jargon)
+        const method = match.verification_method;
+        if (method === 'NCC+SSIM') {
+            elements.evMethod.textContent = 'Deep Pixel Analysis';
+        } else {
+            elements.evMethod.textContent = 'Perceptual Hashing';
+        }
         
-        // Populate timing bars if available
+        // Pixel & structural match evidence (show only when available)
+        if (match.ncc_score != null || match.ssim_score != null) {
+            elements.evidenceNccGrid.classList.remove('hidden');
+            elements.evNcc.textContent = match.ncc_score != null ? (match.ncc_score * 100).toFixed(1) + '%' : '—';
+            elements.evSsim.textContent = match.ssim_score != null ? (match.ssim_score * 100).toFixed(1) + '%' : '—';
+            if (match.ncc_score != null) {
+                elements.evNcc.className = 'evidence-value ncc-value ' + (match.ncc_score >= 0.8 ? 'score-high' : match.ncc_score >= 0.5 ? 'score-mid' : 'score-low');
+            }
+            if (match.ssim_score != null) {
+                elements.evSsim.className = 'evidence-value ssim-value ' + (match.ssim_score >= 0.8 ? 'score-high' : match.ssim_score >= 0.5 ? 'score-mid' : 'score-low');
+            }
+        } else {
+            elements.evidenceNccGrid.classList.add('hidden');
+        }
+        
+        // Candidate stats
         const stages = data.pipeline_stages;
+        if (stages && (stages.candidates_accepted != null || stages.candidates_rejected != null)) {
+            const accepted = stages.candidates_accepted ?? 0;
+            const rejected = stages.candidates_rejected ?? 0;
+            const searched = stages.references_searched ?? 0;
+            elements.evCandidates.textContent = `${accepted} accepted / ${rejected} rejected (of ${searched} refs)`;
+            elements.evidenceCandidates.classList.remove('hidden');
+        } else {
+            elements.evidenceCandidates.classList.add('hidden');
+        }
+        
+        // Populate timing bars
         if (stages) {
             elements.evidenceTiming.classList.remove('hidden');
             const total = stages.total_sec || 1;
             elements.timingBars.innerHTML = '';
-            const timingEntries = [
-                { label: 'Frame Extraction', sec: stages.frame_extraction_sec },
-                { label: 'Feature Extraction', sec: stages.feature_extraction_sec },
-                { label: 'Matching', sec: stages.matching_sec },
-            ].filter(e => e.sec != null);
+            
+            // Map stage keys to readable labels
+            const stageLabels = {
+                'frame_extraction_sec': 'Frame Extraction',
+                'feature_extraction_sec': 'Feature Analysis',
+                'hash_precompute_sec': 'Signature Prep',
+                'db_retrieval_sec': 'Library Loading',
+                'matching_sec': 'Comparison',
+                'ncc_verification_sec': 'Deep Verification',
+                'confidence_calculation_sec': 'Scoring',
+            };
+            
+            const timingEntries = Object.entries(stages)
+                .filter(([key, val]) => key.endsWith('_sec') && key !== 'total_sec' && val != null && stageLabels[key])
+                .map(([key, val]) => ({ label: stageLabels[key], sec: val }));
             
             timingEntries.forEach(entry => {
                 const pct = Math.max(2, (entry.sec / total) * 100);

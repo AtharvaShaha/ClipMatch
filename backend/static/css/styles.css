@@ -2423,3 +2423,142 @@ body {
         text-align: left;
     }
 }
+
+/* ============================================================
+   Pipeline Stage Visualization
+   ============================================================ */
+.pipeline-stages {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: var(--space-lg) auto;
+    padding: var(--space-md) var(--space-lg);
+    max-width: 650px;
+    flex-wrap: wrap;
+}
+
+.pipeline-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+}
+
+.stage-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    transition: all 0.4s ease;
+    position: relative;
+}
+
+.pipeline-stage.active .stage-dot {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 10px var(--accent-primary), 0 0 20px rgba(0, 240, 255, 0.2);
+    animation: stagePulse 1.5s ease-in-out infinite;
+}
+
+.pipeline-stage.completed .stage-dot {
+    background: var(--accent-success);
+    border-color: var(--accent-success);
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.3);
+}
+
+.stage-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color 0.3s ease;
+}
+
+.pipeline-stage.active .stage-label {
+    color: var(--accent-primary);
+}
+
+.pipeline-stage.completed .stage-label {
+    color: var(--accent-success);
+}
+
+.pipeline-connector {
+    width: 24px;
+    height: 2px;
+    background: var(--border-color);
+    margin: 0 2px;
+    margin-bottom: 18px;
+    transition: background 0.4s ease;
+}
+
+.pipeline-connector.completed {
+    background: var(--accent-success);
+    box-shadow: 0 0 4px rgba(0, 255, 136, 0.2);
+}
+
+@keyframes stagePulse {
+    0%, 100% { box-shadow: 0 0 10px var(--accent-primary), 0 0 20px rgba(0, 240, 255, 0.2); }
+    50% { box-shadow: 0 0 16px var(--accent-primary), 0 0 30px rgba(0, 240, 255, 0.35); }
+}
+
+/* ============================================================
+   NCC / SSIM Score Color Coding
+   ============================================================ */
+.evidence-grid-ncc {
+    margin-top: var(--space-sm);
+    border-top: 1px dashed rgba(42, 42, 58, 0.4);
+    padding-top: var(--space-sm);
+}
+
+.score-high {
+    color: var(--accent-success) !important;
+}
+
+.score-mid {
+    color: var(--accent-warning) !important;
+}
+
+.score-low {
+    color: var(--accent-danger) !important;
+}
+
+/* ============================================================
+   Candidate Stats
+   ============================================================ */
+.evidence-candidates {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    border: 1px solid rgba(42, 42, 58, 0.6);
+}
+
+/* Pipeline stages responsive */
+@media (max-width: 600px) {
+    .pipeline-stages {
+        gap: 0;
+        padding: var(--space-sm);
+    }
+
+    .pipeline-connector {
+        width: 12px;
+    }
+
+    .stage-label {
+        font-size: 0.5rem;
+    }
+
+    .stage-dot {
+        width: 10px;
+        height: 10px;
+    }
+}

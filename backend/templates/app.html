@@ -82,14 +82,14 @@
                         <label class="quality-label">Is this clip edited or heavily compressed?</label>
                         <div class="quality-options">
                             <button type="button" class="quality-btn active" data-quality="original" id="qualityOriginal">
-                                <span class="quality-icon">✓</span>
+                                <span class="quality-icon">⚡</span>
                                 <span class="quality-text">Original Quality</span>
-                                <span class="quality-desc">Fast matching for original clips</span>
+                                <span class="quality-desc">Fast hash matching (~5-10s). Best for unedited re-uploads &amp; screen recordings.</span>
                             </button>
                             <button type="button" class="quality-btn" data-quality="edited" id="qualityEdited">
-                                <span class="quality-icon">⚙</span>
-                                <span class="quality-text">Edited/Compressed</span>
-                                <span class="quality-desc">Deep analysis for edited clips</span>
+                                <span class="quality-icon">🔬</span>
+                                <span class="quality-text">Enhanced Analysis</span>
+                                <span class="quality-desc">Deep pixel verification (~15-30s). Best for edited, compressed, or watermarked clips.</span>
                             </button>
                         </div>
                     </div>
@@ -114,6 +114,38 @@
                         <h3>ANALYZING CLIP</h3>
                         <p id="processingStatus">Extracting visual signatures...</p>
                         <p class="elapsed-timer" id="elapsedTimer">0.0s elapsed</p>
+                    </div>
+                    <!-- Pipeline Stage Visualization -->
+                    <div class="pipeline-stages" id="pipelineStages">
+                        <div class="pipeline-stage active" data-stage="upload">
+                            <span class="stage-dot"></span>
+                            <span class="stage-label">Upload</span>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-stage" data-stage="extract">
+                            <span class="stage-dot"></span>
+                            <span class="stage-label">Extract Frames</span>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-stage" data-stage="hash">
+                            <span class="stage-dot"></span>
+                            <span class="stage-label">Compute Hashes</span>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-stage" data-stage="match">
+                            <span class="stage-dot"></span>
+                            <span class="stage-label">Match</span>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-stage" data-stage="verify">
+                            <span class="stage-dot"></span>
+                            <span class="stage-label">Verify</span>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-stage" data-stage="score">
+                            <span class="stage-dot"></span>
+                            <span class="stage-label">Score</span>
+                        </div>
                     </div>
                     <div class="processing-progress">
                         <div class="progress-bar" id="progressBar"></div>
@@ -187,11 +219,25 @@
                                         <span class="evidence-value" id="evFrames">—</span>
                                     </div>
                                     <div class="evidence-item">
-                                        <span class="evidence-label">Verification Method</span>
+                                        <span class="evidence-label">Analysis Method</span>
                                         <span class="evidence-value" id="evMethod">—</span>
                                     </div>
                                 </div>
-                                <div class="evidence-timing hidden" id="evidenceTiming">
+                                <div class="evidence-grid evidence-grid-ncc hidden" id="evidenceNccGrid">
+                                    <div class="evidence-item">
+                                        <span class="evidence-label">Pixel Match Score</span>
+                                        <span class="evidence-value ncc-value" id="evNcc">—</span>
+                                    </div>
+                                    <div class="evidence-item">
+                                        <span class="evidence-label">Structural Match Score</span>
+                                        <span class="evidence-value ssim-value" id="evSsim">—</span>
+                                    </div>
+                                </div>
+                                <div class="evidence-candidates" id="evidenceCandidates">
+                                    <span class="evidence-label">Candidates</span>
+                                    <span class="evidence-value" id="evCandidates">—</span>
+                                </div>
+                                <div class="evidence-timing" id="evidenceTiming">
                                     <span class="evidence-label">Pipeline Timing</span>
                                     <div class="timing-bars" id="timingBars"></div>
                                 </div>

@@ -6,7 +6,7 @@ SQLAlchemy models for storing video metadata and features
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, LargeBinary, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 import sys
 sys.path.append('..')
 from config import DATABASE_PATH
@@ -19,6 +19,7 @@ class ReferenceVideo(Base):
     __tablename__ = 'reference_videos'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
+    source_name = Column(String(20), unique=True, nullable=True)  # source_001, source_002...
     filename = Column(String(500), nullable=False, unique=True)
     filepath = Column(String(1000), nullable=False)
     title = Column(String(500), nullable=True)
@@ -29,6 +30,8 @@ class ReferenceVideo(Base):
     fps = Column(Float, nullable=True)
     file_size = Column(Integer, nullable=True)  # Size in bytes
     checksum = Column(String(64), nullable=True)  # SHA256 hash
+    cloudinary_url = Column(String(1000), nullable=True)  # Cloudinary secure URL
+    cloudinary_public_id = Column(String(500), nullable=True)  # Cloudinary public ID
     indexed_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(50), default='pending')  # pending, indexing, indexed, error
     
@@ -38,8 +41,9 @@ class ReferenceVideo(Base):
     def to_dict(self):
         return {
             'id': self.id,
+            'source_name': self.source_name,
             'filename': self.filename,
-            'title': self.title or self.filename,
+            'title': self.title or self.source_name or self.filename,
             'duration': self.duration,
             'duration_formatted': self._format_duration(self.duration),
             'frame_count': self.frame_count,
@@ -48,7 +52,10 @@ class ReferenceVideo(Base):
             'file_size': self.file_size,
             'file_size_formatted': self._format_size(self.file_size),
             'indexed_at': self.indexed_at.isoformat() if self.indexed_at else None,
-            'status': self.status
+            'status': self.status,
+            'cloudinary_url': self.cloudinary_url,
+            'cloudinary_public_id': self.cloudinary_public_id,
+            'cloud_stored': self.cloudinary_url is not None,
         }
     
     @staticmethod
@@ -79,6 +86,7 @@ class VideoFrame(Base):
     __table_args__ = (
         Index('idx_frame_video_number', 'video_id', 'frame_number'),
         Index('idx_frame_video_timestamp', 'video_id', 'timestamp'),
+        Index('idx_frame_video_phash', 'video_id', 'phash'),
     )
     
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -184,11 +192,12 @@ class MatchResult(Base):
 
 # Database initialization
 _engine = None
+_session_factory = None
 
 
 def init_db():
     """Initialize the database and create tables with SQLite optimizations."""
-    global _engine
+    global _engine, _session_factory
     from sqlalchemy import event
     
     _engine = create_engine(f"sqlite:///{DATABASE_PATH}")
@@ -201,19 +210,20 @@ def init_db():
         cursor.execute('PRAGMA journal_mode=WAL')
         cursor.execute('PRAGMA synchronous=NORMAL')
         cursor.execute('PRAGMA cache_size=-64000')  # 64MB cache
+        cursor.execute('PRAGMA temp_store=MEMORY')   # Temp tables in RAM
         cursor.close()
     
     Base.metadata.create_all(_engine)
+    _session_factory = scoped_session(sessionmaker(bind=_engine))
     return _engine
 
 
 def get_session():
-    """Get a new database session"""
-    global _engine
+    """Get a database session from the scoped factory (reuses per-thread)."""
+    global _engine, _session_factory
     if _engine is None:
         init_db()
-    Session = sessionmaker(bind=_engine)
-    return Session()
+    return _session_factory()
 
 
 # Initialize database on import

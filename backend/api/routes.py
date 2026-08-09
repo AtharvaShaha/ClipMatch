@@ -14,6 +14,7 @@ from services.indexer import video_indexer
 from services.matcher import clip_matcher
 from services.advanced_matcher import advanced_matcher
 from services.video_processor import video_processor
+from services import cloudinary_service
 
 api = Blueprint('api', __name__, url_prefix='/api')
 
@@ -342,3 +343,195 @@ def validate_clip():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# ============================================================
+# Cloud Storage (Cloudinary)
+# ============================================================
+
+@api.route('/cloud/videos', methods=['GET'])
+def list_cloud_videos():
+    """List all videos stored on Cloudinary."""
+    try:
+        result = cloudinary_service.list_cloud_videos()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api.route('/cloud/upload', methods=['POST'])
+def upload_to_cloud():
+    """
+    Upload a video to Cloudinary AND index it locally.
+    Flow: Save locally → Index → Upload to Cloudinary → Store cloud URL in DB → Optionally delete local file.
+    """
+    try:
+        if 'video' not in request.files:
+            return jsonify({'success': False, 'error': 'No video file provided'}), 400
+        
+        file = request.files['video']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+        
+        filename = secure_filename(file.filename)
+        ext = Path(filename).suffix.lower()
+        
+        if ext not in VideoConfig.SUPPORTED_FORMATS:
+            return jsonify({
+                'success': False,
+                'error': f'Unsupported format: {ext}'
+            }), 400
+        
+        # Save locally to references dir
+        filepath = REFERENCES_DIR / filename
+        file.save(str(filepath))
+        
+        title = request.form.get('title', None)
+        
+        # Step 1: Index the video locally (extracts frames → computes hashes → stores in DB)
+        index_result = video_indexer.index_video(str(filepath), title=title)
+        
+        if not index_result['success']:
+            if filepath.exists():
+                filepath.unlink()
+            return jsonify(index_result), 400
+        
+        # Step 2: Upload to Cloudinary
+        cloud_result = cloudinary_service.upload_video(str(filepath))
+        
+        if cloud_result['success']:
+            # Step 3: Store cloud URL in database
+            from models.database import get_session, ReferenceVideo
+            session = get_session()
+            try:
+                ref_video = session.query(ReferenceVideo).filter(
+                    ReferenceVideo.filename == filename
+                ).first()
+                if ref_video:
+                    ref_video.cloudinary_url = cloud_result['secure_url']
+                    ref_video.cloudinary_public_id = cloud_result['public_id']
+                    session.commit()
+            finally:
+                session.close()
+        
+        return jsonify({
+            'success': True,
+            'indexed': index_result.get('success', False),
+            'cloud_uploaded': cloud_result.get('success', False),
+            'cloud_url': cloud_result.get('secure_url', ''),
+            'video_id': index_result.get('video_id'),
+            'message': f'{filename} indexed and uploaded to cloud'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api.route('/cloud/index-from-url', methods=['POST'])
+def index_from_cloud_url():
+    """
+    Download a video from Cloudinary URL and index it.
+    Body: { "public_id": "clipmatch_references/VideoName" }
+    """
+    try:
+        data = request.get_json()
+        if not data or 'public_id' not in data:
+            return jsonify({'success': False, 'error': 'public_id is required'}), 400
+        
+        public_id = data['public_id']
+        
+        # Download from Cloudinary
+        dl_result = cloudinary_service.download_video(public_id)
+        if not dl_result['success']:
+            return jsonify(dl_result), 400
+        
+        filepath = dl_result['filepath']
+        title = data.get('title', None)
+        
+        # Index the downloaded video
+        index_result = video_indexer.index_video(filepath, title=title)
+        
+        if index_result['success']:
+            # Store cloud info in DB
+            from models.database import get_session, ReferenceVideo
+            import cloudinary.utils
+            session = get_session()
+            try:
+                ref_video = session.query(ReferenceVideo).filter(
+                    ReferenceVideo.filename == dl_result['filename']
+                ).first()
+                if ref_video:
+                    cloud_url = cloudinary.utils.cloudinary_url(
+                        public_id, resource_type="video"
+                    )[0]
+                    ref_video.cloudinary_url = cloud_url
+                    ref_video.cloudinary_public_id = public_id
+                    session.commit()
+            finally:
+                session.close()
+        
+        return jsonify({
+            'success': index_result.get('success', False),
+            'message': f'Indexed {dl_result["filename"]} from cloud',
+            'video_id': index_result.get('video_id'),
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api.route('/cloud/sync', methods=['POST'])
+def sync_to_cloud():
+    """
+    Upload all locally-indexed videos that aren't yet on Cloudinary.
+    This is a batch operation — uploads each local reference video to the cloud.
+    """
+    try:
+        from models.database import get_session, ReferenceVideo
+        session = get_session()
+        try:
+            # Find videos without cloud URLs
+            local_only = session.query(ReferenceVideo).filter(
+                ReferenceVideo.status == 'indexed',
+                ReferenceVideo.cloudinary_url == None
+            ).all()
+            
+            results = []
+            for ref in local_only:
+                if os.path.exists(ref.filepath):
+                    cloud_result = cloudinary_service.upload_video(ref.filepath)
+                    if cloud_result['success']:
+                        ref.cloudinary_url = cloud_result['secure_url']
+                        ref.cloudinary_public_id = cloud_result['public_id']
+                        session.commit()
+                        results.append({
+                            'filename': ref.filename,
+                            'status': 'uploaded',
+                            'cloud_url': cloud_result['secure_url']
+                        })
+                    else:
+                        results.append({
+                            'filename': ref.filename,
+                            'status': 'failed',
+                            'error': cloud_result.get('error', 'Unknown')
+                        })
+                else:
+                    results.append({
+                        'filename': ref.filename,
+                        'status': 'skipped',
+                        'error': 'Local file not found'
+                    })
+            
+            uploaded = sum(1 for r in results if r['status'] == 'uploaded')
+            return jsonify({
+                'success': True,
+                'total': len(local_only),
+                'uploaded': uploaded,
+                'results': results
+            })
+            
+        finally:
+            session.close()
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

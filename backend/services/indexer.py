@@ -15,6 +15,15 @@ from services.video_processor import VideoProcessor
 from services.feature_extractor import FeatureExtractor
 
 
+def _invalidate_matcher_cache():
+    """Safely invalidate the matcher's in-memory reference cache."""
+    try:
+        from services.matcher import invalidate_ref_cache
+        invalidate_ref_cache()
+    except ImportError:
+        pass
+
+
 class VideoIndexer:
     """
     Indexes reference videos by extracting and storing visual features.
@@ -177,6 +186,7 @@ class VideoIndexer:
             
         finally:
             session.close()
+            _invalidate_matcher_cache()
     
     def index_directory(self, directory_path: str = None,
                         progress_callback=None) -> Dict:
@@ -337,6 +347,7 @@ class VideoIndexer:
             }
         finally:
             session.close()
+            _invalidate_matcher_cache()
     
     def get_indexed_videos(self) -> List[Dict]:
         """

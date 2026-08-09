@@ -55,12 +55,12 @@
             </div>
             <div class="hero-stats">
                 <div class="stat-item">
-                    <span class="stat-number">40%+</span>
+                    <span class="stat-number">45%+</span>
                     <span class="stat-label">Min Confidence</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-number">6-Point</span>
-                    <span class="stat-label">Validation</span>
+                    <span class="stat-number">4-Stage</span>
+                    <span class="stat-label">Pipeline</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-number">Frame-Level</span>
@@ -94,27 +94,27 @@
             <div class="feature-card">
                 <div class="feature-icon">🎯</div>
                 <h3>Perceptual Hashing</h3>
-                <p>Advanced multi-algorithm hashing (pHash, dHash, wHash) detects visual patterns even with compression or color changes.</p>
+                <p>Triple-hash comparison (pHash, dHash, wHash) creates visual fingerprints that survive compression, re-encoding, and format changes.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🔐</div>
-                <h3>Strict Validation</h3>
-                <p>6-point validation system ensures accurate matches and eliminates false positives through comprehensive signal analysis.</p>
+                <h3>Multi-Signal Validation</h3>
+                <p>Combines hash distance, color similarity, temporal consistency, and confidence scoring to eliminate false positives.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">⚡</div>
-                <h3>Lightning Fast</h3>
-                <p>Indexed queries return results in milliseconds. Process multiple videos and build comprehensive reference libraries instantly.</p>
+                <h3>Parallel Processing</h3>
+                <p>Multi-threaded comparison across all reference videos simultaneously. Results in 5-10 seconds for a library of 60+ videos.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">📊</div>
                 <h3>Exact Timestamps</h3>
-                <p>Get precise start and end timestamps for matched content with frame-level accuracy and confidence scoring.</p>
+                <p>Identifies the precise start and end time where your clip appears in the source video with confidence scoring.</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">📚</div>
-                <h3>Reference Library</h3>
-                <p>Index unlimited reference videos. Build a searchable database of your content for continuous monitoring and detection.</p>
+                <div class="feature-icon">☁️</div>
+                <h3>Cloud Storage</h3>
+                <p>Reference videos backed up on Cloudinary. Only a lightweight hash database is needed locally for matching.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">📋</div>
@@ -127,52 +127,43 @@
     <!-- How It Works Section -->
     <section class="how-it-works" id="how-it-works">
         <div class="section-header">
-            <h2 class="section-title">The ClipMatch Process</h2>
-            <p class="section-subtitle">Our sophisticated 5-step matching pipeline</p>
+            <h2 class="section-title">The ClipMatch Pipeline</h2>
+            <p class="section-subtitle">Our 4-stage matching process</p>
         </div>
         
         <div class="process-container">
             <div class="process-step">
                 <div class="step-number">1</div>
-                <h3>Reference Indexing</h3>
-                <p>Upload your reference videos. The system preprocesses frames and extracts multiple perceptual hashes for rapid retrieval.</p>
-                <div class="step-detail">Supports: MP4, AVI, MKV, MOV, WEBM</div>
+                <h3>Frame Extraction</h3>
+                <p>Extract 20 evenly-spaced frames from your query clip using OpenCV. Each frame is resized to 320×240 for fast processing.</p>
+                <div class="step-detail">Input: MP4, AVI, MKV, MOV, WEBM (5-60 sec)</div>
             </div>
             
             <div class="process-arrow">→</div>
             
             <div class="process-step">
                 <div class="step-number">2</div>
-                <h3>Feature Extraction</h3>
-                <p>Submit your search clip. We extract visual fingerprints using pHash, dHash, and wHash algorithms concurrently.</p>
-                <div class="step-detail">Frame analysis at 1-frame/sec intervals</div>
+                <h3>Feature Hashing</h3>
+                <p>Compute three perceptual hashes (pHash, dHash, wHash) per frame. Also extract color averages and brightness for multi-signal comparison.</p>
+                <div class="step-detail">64-bit fingerprint per hash algorithm</div>
             </div>
             
             <div class="process-arrow">→</div>
             
             <div class="process-step">
                 <div class="step-number">3</div>
-                <h3>Database Matching</h3>
-                <p>Query the indexed reference library. Compare hash signatures across dimensions for potential matches.</p>
-                <div class="step-detail">Millisecond-level query response</div>
+                <h3>Library Comparison</h3>
+                <p>Compare clip hashes against all indexed reference videos using vectorized Hamming distance. Multi-threaded across 6 workers for parallel processing.</p>
+                <div class="step-detail">Processes 60+ references in ~1 second</div>
             </div>
             
             <div class="process-arrow">→</div>
             
             <div class="process-step">
                 <div class="step-number">4</div>
-                <h3>Strict Validation</h3>
-                <p>Apply 6-point validation: hash ratios, Hamming distance, color patterns, frame alignment, SSIM, and NCC scoring.</p>
-                <div class="step-detail">Minimum 40% confidence threshold</div>
-            </div>
-            
-            <div class="process-arrow">→</div>
-            
-            <div class="process-step">
-                <div class="step-number">5</div>
-                <h3>Results & Timestamps</h3>
-                <p>Get exact timestamps showing where your clip appears within the source video with confidence metrics.</p>
-                <div class="step-detail">Frame-level precision with duration</div>
+                <h3>Confidence Scoring</h3>
+                <p>Weighted formula combining hash match ratio, color similarity, average distance, and temporal consistency. Returns the best match with exact timestamps.</p>
+                <div class="step-detail">Minimum 45% confidence threshold</div>
             </div>
         </div>
     </section>
@@ -197,10 +188,10 @@
             <div class="spec-box">
                 <h3>Validation Signals</h3>
                 <ul class="spec-list">
-                    <li>Hash match ratio ≥40%</li>
-                    <li>Avg distance ≤20 bits</li>
-                    <li>Color pattern match ≥50%</li>
-                    <li>SSIM / NCC verification</li>
+                    <li>Hash match ratio (strict threshold)</li>
+                    <li>Average hash distance</li>
+                    <li>Color pattern similarity</li>
+                    <li>Temporal consistency</li>
                 </ul>
             </div>
             <div class="spec-box">
@@ -215,10 +206,10 @@
             <div class="spec-box">
                 <h3>Performance</h3>
                 <ul class="spec-list">
-                    <li>Sub-second indexing</li>
-                    <li>Millisecond queries</li>
-                    <li>Multi-hour references</li>
-                    <li>Parallel processing</li>
+                    <li>5-10 second query time</li>
+                    <li>60+ reference library</li>
+                    <li>Multi-threaded matching</li>
+                    <li>Cloudinary cloud backup</li>
                 </ul>
             </div>
         </div>
@@ -304,7 +295,7 @@
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; 2024 ClipMatch. Advanced Video Analysis Technology.</p>
+            <p>&copy; 2025 ClipMatch. Advanced Video Analysis Technology.</p>
         </div>
     </footer>
 
